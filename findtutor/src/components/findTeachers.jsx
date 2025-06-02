@@ -52,7 +52,7 @@ const FindTeachers = () => {
         image: teacher.profile_picture || 'https://randomuser.me/api/portraits/men/1.jpg', // Fallback image
         price: `LKR ${teacher.hourly_rate}/hr`,
         hourly_rate: teacher.hourly_rate, // Keep original rate for filtering
-        availability: 'Contact for availability', // Default since not provided by API
+        availability: teacher.availability, // Default since not provided by API
         description: teacher.bio || 'Experienced teacher ready to help you learn.',
         education: teacher.education,
         lat: teacher.lat,
