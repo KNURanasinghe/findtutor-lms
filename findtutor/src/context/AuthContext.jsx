@@ -18,7 +18,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password, role) => {
     try {
-      const response = await axios.post('http://localhost:5000/api/users/login', {
+      const response = await axios.post('http://145.223.21.62:5000/api/users/login', {
         email,
         password,
         role
@@ -35,7 +35,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      const response = await axios.post('http://localhost:5000/api/users/', userData);
+      const response = await axios.post('http://145.223.21.62:5000/api/users/', userData);
       const newUser = response.data;
       setUser(newUser);
       localStorage.setItem('user', JSON.stringify(newUser));
@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await axios.post('http://localhost:5000/api/users/logout');
+      await axios.post('http://145.223.21.62:5000/api/users/logout');
       setUser(null);
       localStorage.removeItem('user');
     } catch (error) {
@@ -60,7 +60,7 @@ export const AuthProvider = ({ children }) => {
 
   const updateProfile = async (profileData) => {
     try {
-      const response = await axios.put('http://localhost:5000/api/users/profile', profileData, {
+      const response = await axios.put('http://145.223.21.62:5000/api/users/profile', profileData, {
         headers: {
           Authorization: `Bearer ${user.token}`
         }

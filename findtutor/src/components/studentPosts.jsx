@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 
 const StudentPosts = () => {
+  const navigate = useNavigate();
   const [showPostForm, setShowPostForm] = useState(false);
+  const [loading, setLoading] = useState(true);
+   const [user, setUser] = useState(null);
   const [newPost, setNewPost] = useState({
     subject: '',
     grade: '',
@@ -54,6 +58,39 @@ const StudentPosts = () => {
     }
   ];
 
+   useEffect(() => {
+    const loadUserData = () => {
+      try {
+        const userData = localStorage.getItem('user');
+        if (userData) {
+          const parsedUser = JSON.parse(userData);
+          
+          // Check if user is a student
+          if (parsedUser.role !== 'student') {
+            alert('Access denied. This page is for students only.');
+            navigate('/login/student');
+            return;
+          }
+          
+          setUser(parsedUser);
+          setNewPost(prev => ({
+            ...prev,
+            contact: parsedUser.email || ''
+          }));
+        } else {
+          navigate('/login/student');
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+        navigate('/login/student');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserData();
+  }, [navigate]);
+
   useEffect(() => {
     setStudentPosts(sampleStudentPosts);
   }, []);
@@ -62,7 +99,7 @@ const StudentPosts = () => {
     e.preventDefault();
     const post = {
       id: studentPosts.length + 1,
-      studentName: 'Current User', // Replace with actual user name
+      studentName: user.name, // Replace with actual user name
       ...newPost,
       postedDate: 'Just now',
       location: 'Not specified'

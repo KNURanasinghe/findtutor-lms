@@ -8,6 +8,8 @@ const FindTeachers = () => {
   const [selectedSubject, setSelectedSubject] = useState('');
   const [location, setLocation] = useState('');
   const [teachers, setTeachers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const locationInputRef = useRef(null);
   const autocompleteRef = useRef(null);
 
@@ -18,102 +20,113 @@ const FindTeachers = () => {
     'Economics', 'Business Studies', 'Art', 'Music'
   ];
 
-  // Sample teachers data - replace with your actual data
-  const sampleTeachers = [
-    {
-      id: 1,
-      name: 'John Smith',
-      subject: 'Mathematics',
-      rating: 4.8,
-      reviews: 125,
-      experience: '5 years',
-      location: 'Colombo',
-      image: 'https://randomuser.me/api/portraits/men/1.jpg',
-      price: 'LKR 1500/hr',
-      availability: 'Weekdays, Weekends',
-      description: 'Experienced math tutor specializing in calculus and algebra.',
-      reviewsList: [
-        { id: 1, rating: 5, comment: 'Excellent teacher! Very patient and knowledgeable.', student: 'Sarah J.' },
-        { id: 2, rating: 4, comment: 'Great at explaining complex concepts.', student: 'Michael T.' }
-      ]
-    },
-    {
-      id: 2,
-      name: 'Sarah Johnson',
-      subject: 'English',
-      rating: 4.9,
-      reviews: 98,
-      experience: '7 years',
-      location: 'Kandy',
-      image: 'https://randomuser.me/api/portraits/women/2.jpg',
-      price: 'LKR 1800/hr',
-      availability: 'Weekdays',
-      description: 'Expert in English literature and language teaching.',
-      reviewsList: [
-        { id: 1, rating: 5, comment: 'Amazing teacher! Improved my writing skills significantly.', student: 'David R.' },
-        { id: 2, rating: 5, comment: 'Very professional and engaging lessons.', student: 'Emma W.' }
-      ]
-    },
-    {
-      id: 3,
-      name: 'Michael Brown',
-      subject: 'Physics',
-      rating: 4.7,
-      reviews: 76,
-      experience: '4 years',
-      location: 'Galle',
-      image: 'https://randomuser.me/api/portraits/men/3.jpg',
-      price: 'LKR 1600/hr',
-      availability: 'Weekends',
-      description: 'Specialized in physics and mathematics for advanced level students.',
-      reviewsList: [
-        { id: 1, rating: 4, comment: 'Clear explanations and practical examples.', student: 'James K.' },
-        { id: 2, rating: 5, comment: 'Helped me understand complex physics concepts.', student: 'Lisa M.' }
-      ]
+  // Fetch teachers from API
+  const fetchTeachers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch('http://145.223.21.62:5000/api/teachers');
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const apiTeachers = await response.json();
+      
+      // Map API response to component structure
+      const mappedTeachers = apiTeachers.map(teacher => ({
+        id: teacher.teacher_id,
+        user_id: teacher.user_id,
+        name: teacher.name,
+        subject: 'General', // Default since not provided by API
+        rating: 4.5, // Default rating since not provided by API
+        reviews: 0, // Default since not provided by API
+        experience: `${teacher.years_experience} years`,
+        location: teacher.location,
+        image: teacher.profile_picture || 'https://randomuser.me/api/portraits/men/1.jpg', // Fallback image
+        price: `LKR ${teacher.hourly_rate}/hr`,
+        availability: 'Contact for availability', // Default since not provided by API
+        description: teacher.bio || 'Experienced teacher ready to help you learn.',
+        education: teacher.education,
+        lat: teacher.lat,
+        lng: teacher.lng,
+        is_subscribed: teacher.is_subscribed,
+        reviewsList: [] // Default empty array since not provided by API
+      }));
+      
+      setTeachers(mappedTeachers);
+    } catch (err) {
+      console.error('Error fetching teachers:', err);
+      setError('Failed to load teachers. Please try again later.');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
   useEffect(() => {
-    // Initialize Google Places Autocomplete
-    // const initAutocomplete = () => {
-    //   if (window.google && locationInputRef.current) {
-    //     autocompleteRef.current = new window.google.maps.places.Autocomplete(
-    //       locationInputRef.current,
-    //       {
-    //         types: ['(cities)'],
-    //         componentRestrictions: { country: 'lk' }
-    //       }
-    //     );
-
-    //     autocompleteRef.current.addListener('place_changed', () => {
-    //       const place = autocompleteRef.current.getPlace();
-    //       if (place.geometry) {
-    //         setLocation(place.formatted_address);
-    //       }
-    //     });
-    //   }
-    // };
-
-    // // Load Google Maps script
-    // if (!window.google) {
-    //   const script = document.createElement('script');
-    //   script.src = `https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places`;
-    //   script.async = true;
-    //   script.onload = initAutocomplete;
-    //   document.head.appendChild(script);
-    // } else {
-    //   initAutocomplete();
-    // }
-
-    // Set initial teachers data
-    setTeachers(sampleTeachers);
+    fetchTeachers();
   }, []);
 
   const handleSearch = (e) => {
     e.preventDefault();
-    // Implement search logic here
-    console.log('Searching for:', { searchQuery, selectedSubject, location });
+    // Filter teachers based on search criteria
+    const filteredTeachers = teachers.filter(teacher => {
+      const matchesQuery = searchQuery === '' || 
+        teacher.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        teacher.description.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesSubject = selectedSubject === '' || teacher.subject === selectedSubject;
+      
+      const matchesLocation = location === '' || 
+        teacher.location.toLowerCase().includes(location.toLowerCase());
+      
+      return matchesQuery && matchesSubject && matchesLocation;
+    });
+    
+    console.log('Search results:', filteredTeachers);
+    // You can update state to show filtered results if needed
   };
+
+  const handleRetry = () => {
+    fetchTeachers();
+  };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="find-teachers-page">
+        <div className="container">
+          <div className="text-center py-5">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <p className="mt-3">Loading teachers...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="find-teachers-page">
+        <div className="container">
+          <div className="text-center py-5">
+            <div className="alert alert-danger" role="alert">
+              <i className="bi bi-exclamation-triangle-fill me-2"></i>
+              {error}
+            </div>
+            <button className="btn btn-primary" onClick={handleRetry}>
+              <i className="bi bi-arrow-clockwise me-2"></i>
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="find-teachers-page">
@@ -194,60 +207,90 @@ const FindTeachers = () => {
       {/* Teachers List Section */}
       <section className="teachers-section">
         <div className="container">
-          <div className="teachers-list">
-            {teachers.map((teacher) => (
-              <div key={teacher.id} className="teacher-card">
-                <div className="row align-items-center">
-                  <div className="col-md-2">
-                    <div className="teacher-image">
-                      <img src={teacher.image} alt={teacher.name} />
-                      <div className="rating-badge">
-                        <i className="bi bi-star-fill"></i>
-                        <span>{teacher.rating}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="col-md-7">
-                    <div className="teacher-info">
-                      <div className="teacher-header">
-                        <h3>{teacher.name}</h3>
-                        <span className="subject-badge">{teacher.subject}</span>
-                      </div>
-                      <div className="details">
-                        <span><i className="bi bi-geo-alt"></i> {teacher.location}</span>
-                        <span><i className="bi bi-clock"></i> {teacher.availability}</span>
-                        <span><i className="bi bi-cash"></i> {teacher.price}</span>
-                        <span><i className="bi bi-award"></i> {teacher.experience}</span>
-                      </div>
-                      <p className="description">{teacher.description}</p>
-                      <div className="reviews-summary">
-                        <div className="rating-stars">
-                          {[...Array(5)].map((_, i) => (
-                            <i
-                              key={i}
-                              className={`bi bi-star${i < Math.floor(teacher.rating) ? '-fill' : ''}`}
-                            ></i>
-                          ))}
+          <div className="d-flex justify-content-between align-items-center mb-4">
+            <h2>Available Teachers ({teachers.length})</h2>
+            <button className="btn btn-outline-primary btn-sm" onClick={fetchTeachers}>
+              <i className="bi bi-arrow-clockwise me-1"></i>
+              Refresh
+            </button>
+          </div>
+          
+          {teachers.length === 0 ? (
+            <div className="text-center py-5">
+              <i className="bi bi-people display-1 text-muted"></i>
+              <h3 className="mt-3">No teachers found</h3>
+              <p className="text-muted">Try adjusting your search criteria or check back later.</p>
+            </div>
+          ) : (
+            <div className="teachers-list">
+              {teachers.map((teacher) => (
+                <div key={teacher.id} className="teacher-card">
+                  <div className="row align-items-center">
+                    <div className="col-md-2">
+                      <div className="teacher-image">
+                        <img 
+                          src={teacher.image} 
+                          alt={teacher.name}
+                          onError={(e) => {
+                            e.target.src = 'https://randomuser.me/api/portraits/men/1.jpg';
+                          }}
+                        />
+                        <div className="rating-badge">
+                          <i className="bi bi-star-fill"></i>
+                          <span>{teacher.rating}</span>
                         </div>
-                        <span className="reviews-count">{teacher.reviews} reviews</span>
+                        {teacher.is_subscribed && (
+                          <div className="subscription-badge">
+                            <i className="bi bi-check-circle-fill"></i>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
-                  <div className="col-md-3">
-                    <div className="teacher-actions">
-                      <Link to={`/teacher/${teacher.id}`} className="btn btn-primary">
-                        View Profile
-                      </Link>
-                      <button className="btn btn-outline-primary">
-                        <i className="bi bi-chat-dots"></i>
-                        Message
-                      </button>
+                    <div className="col-md-7">
+                      <div className="teacher-info">
+                        <div className="teacher-header">
+                          <h3>{teacher.name}</h3>
+                          <span className="subject-badge">{teacher.subject}</span>
+                        </div>
+                        <div className="details">
+                          <span><i className="bi bi-geo-alt"></i> {teacher.location}</span>
+                          <span><i className="bi bi-clock"></i> {teacher.availability}</span>
+                          <span><i className="bi bi-cash"></i> {teacher.price}</span>
+                          <span><i className="bi bi-award"></i> {teacher.experience}</span>
+                          {teacher.education && (
+                            <span><i className="bi bi-mortarboard"></i> {teacher.education}</span>
+                          )}
+                        </div>
+                        <p className="description">{teacher.description}</p>
+                        <div className="reviews-summary">
+                          <div className="rating-stars">
+                            {[...Array(5)].map((_, i) => (
+                              <i
+                                key={i}
+                                className={`bi bi-star${i < Math.floor(teacher.rating) ? '-fill' : ''}`}
+                              ></i>
+                            ))}
+                          </div>
+                          <span className="reviews-count">{teacher.reviews} reviews</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="col-md-3">
+                      <div className="teacher-actions">
+                        <Link to={`/teacher/${teacher.id}`} className="btn btn-primary">
+                          View Profile
+                        </Link>
+                        <button className="btn btn-outline-primary">
+                          <i className="bi bi-chat-dots"></i>
+                          Message
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -361,6 +404,22 @@ const FindTeachers = () => {
           font-size: 0.7rem;
         }
 
+        .subscription-badge {
+          position: absolute;
+          top: -5px;
+          right: -5px;
+          background: #10b981;
+          color: white;
+          border-radius: 50%;
+          width: 20px;
+          height: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.6rem;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
         .teacher-info {
           padding: 0 0.75rem;
         }
@@ -462,6 +521,11 @@ const FindTeachers = () => {
           transform: translateY(-1px);
         }
 
+        .spinner-border {
+          width: 3rem;
+          height: 3rem;
+        }
+
         @media (max-width: 768px) {
           .search-hero {
             padding: 2rem 0;
@@ -495,4 +559,4 @@ const FindTeachers = () => {
   );
 };
 
-export default FindTeachers; 
+export default FindTeachers;
