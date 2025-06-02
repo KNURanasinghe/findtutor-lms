@@ -137,7 +137,7 @@ const Header = () => {
                         <i className="bi bi-speedometer2 me-2"></i>
                         Dashboard
                       </Link>
-                      <Link className="dropdown-item" to="/profile">
+                      <Link className="dropdown-item" to="/teacher-profile">
                         <i className="bi bi-person me-2"></i>
                         Profile
                       </Link>
