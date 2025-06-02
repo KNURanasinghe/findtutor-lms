@@ -7,9 +7,13 @@ const FindTeachers = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [location, setLocation] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  // Add a separate state for all teachers and filtered teachers
+  const [allTeachers, setAllTeachers] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
   const locationInputRef = useRef(null);
   const autocompleteRef = useRef(null);
 
@@ -20,12 +24,13 @@ const FindTeachers = () => {
     'Economics', 'Business Studies', 'Art', 'Music'
   ];
 
-  // Fetch teachers from API
+  // Fetch all teachers on initial load
   const fetchTeachers = async () => {
     try {
       setLoading(true);
       setError(null);
       
+      // Try the original endpoint first
       const response = await fetch('http://145.223.21.62:5000/api/teachers');
       
       if (!response.ok) {
@@ -46,6 +51,7 @@ const FindTeachers = () => {
         location: teacher.location,
         image: teacher.profile_picture || 'https://randomuser.me/api/portraits/men/1.jpg', // Fallback image
         price: `LKR ${teacher.hourly_rate}/hr`,
+        hourly_rate: teacher.hourly_rate, // Keep original rate for filtering
         availability: 'Contact for availability', // Default since not provided by API
         description: teacher.bio || 'Experienced teacher ready to help you learn.',
         education: teacher.education,
@@ -55,6 +61,7 @@ const FindTeachers = () => {
         reviewsList: [] // Default empty array since not provided by API
       }));
       
+      setAllTeachers(mappedTeachers);
       setTeachers(mappedTeachers);
     } catch (err) {
       console.error('Error fetching teachers:', err);
@@ -68,24 +75,68 @@ const FindTeachers = () => {
     fetchTeachers();
   }, []);
 
+  // Real-time search with debounce
+  useEffect(() => {
+    if (allTeachers.length > 0) { // Only search if teachers are loaded
+      const timeoutId = setTimeout(() => {
+        if (selectedSubject || location || maxPrice || searchQuery) {
+          searchTeachers();
+        } else {
+          setTeachers(allTeachers); // Show all teachers if no filters
+        }
+      }, 500); // 500ms debounce
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [selectedSubject, location, maxPrice, searchQuery, allTeachers]);
+
+  // Search teachers using client-side filtering (since API search endpoint is not available)
+  const searchTeachers = async (searchParams = {}) => {
+    try {
+      setIsSearching(true);
+      setError(null);
+      
+      // Add small delay to show loading state
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Get current filter values
+      const currentSubject = searchParams.subject !== undefined ? searchParams.subject : selectedSubject;
+      const currentLocation = searchParams.location !== undefined ? searchParams.location : location;
+      const currentMaxPrice = searchParams.maxPrice !== undefined ? searchParams.maxPrice : maxPrice;
+      const currentSearchQuery = searchParams.searchQuery !== undefined ? searchParams.searchQuery : searchQuery;
+      
+      // Filter teachers based on criteria
+      let filteredTeachers = allTeachers.filter(teacher => {
+        // Subject filter
+        const matchesSubject = !currentSubject || teacher.subject.toLowerCase().includes(currentSubject.toLowerCase());
+        
+        // Location filter
+        const matchesLocation = !currentLocation || teacher.location.toLowerCase().includes(currentLocation.toLowerCase());
+        
+        // Max price filter
+        const matchesPrice = !currentMaxPrice || teacher.hourly_rate <= parseFloat(currentMaxPrice);
+        
+        // Search query filter (name, description, education)
+        const matchesQuery = !currentSearchQuery || 
+          teacher.name.toLowerCase().includes(currentSearchQuery.toLowerCase()) ||
+          teacher.description.toLowerCase().includes(currentSearchQuery.toLowerCase()) ||
+          teacher.education?.toLowerCase().includes(currentSearchQuery.toLowerCase());
+        
+        return matchesSubject && matchesLocation && matchesPrice && matchesQuery;
+      });
+      
+      setTeachers(filteredTeachers);
+    } catch (err) {
+      console.error('Error searching teachers:', err);
+      setError('Failed to search teachers. Please try again later.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   const handleSearch = (e) => {
     e.preventDefault();
-    // Filter teachers based on search criteria
-    const filteredTeachers = teachers.filter(teacher => {
-      const matchesQuery = searchQuery === '' || 
-        teacher.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        teacher.description.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchesSubject = selectedSubject === '' || teacher.subject === selectedSubject;
-      
-      const matchesLocation = location === '' || 
-        teacher.location.toLowerCase().includes(location.toLowerCase());
-      
-      return matchesQuery && matchesSubject && matchesLocation;
-    });
-    
-    console.log('Search results:', filteredTeachers);
-    // You can update state to show filtered results if needed
+    searchTeachers();
   };
 
   const handleRetry = () => {
@@ -150,7 +201,7 @@ const FindTeachers = () => {
           <div className="search-card">
             <form onSubmit={handleSearch}>
               <div className="row g-3">
-                <div className="col-md-4">
+                <div className="col-md-3">
                   <div className="form-group">
                     <label className="form-label">Subject</label>
                     <select
@@ -167,7 +218,7 @@ const FindTeachers = () => {
                     </select>
                   </div>
                 </div>
-                <div className="col-md-4">
+                <div className="col-md-3">
                   <div className="form-group">
                     <label className="form-label">Location</label>
                     <input
@@ -180,7 +231,21 @@ const FindTeachers = () => {
                     />
                   </div>
                 </div>
-                <div className="col-md-4">
+                <div className="col-md-3">
+                  <div className="form-group">
+                    <label className="form-label">Max Price (LKR/hr)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      placeholder="Maximum hourly rate"
+                      value={maxPrice}
+                      onChange={(e) => setMaxPrice(e.target.value)}
+                      min="0"
+                      step="100"
+                    />
+                  </div>
+                </div>
+                <div className="col-md-3">
                   <div className="form-group">
                     <label className="form-label">Search</label>
                     <input
@@ -194,9 +259,36 @@ const FindTeachers = () => {
                 </div>
               </div>
               <div className="text-center mt-4">
-                <button type="submit" className="btn btn-primary btn-lg">
-                  <i className="bi bi-search me-2"></i>
-                  Find Teachers
+                <button 
+                  type="submit" 
+                  className="btn btn-primary btn-lg me-3"
+                  disabled={isSearching}
+                >
+                  {isSearching ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      Searching...
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-search me-2"></i>
+                      Find Teachers
+                    </>
+                  )}
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-outline-secondary"
+                  onClick={() => {
+                    setSelectedSubject('');
+                    setLocation('');
+                    setMaxPrice('');
+                    setSearchQuery('');
+                    setTeachers(allTeachers); // Reset to show all teachers
+                  }}
+                >
+                  <i className="bi bi-arrow-counterclockwise me-2"></i>
+                  Clear Filters
                 </button>
               </div>
             </form>
@@ -209,7 +301,13 @@ const FindTeachers = () => {
         <div className="container">
           <div className="d-flex justify-content-between align-items-center mb-4">
             <h2>Available Teachers ({teachers.length})</h2>
-            <button className="btn btn-outline-primary btn-sm" onClick={fetchTeachers}>
+            <button className="btn btn-outline-primary btn-sm" onClick={() => {
+              setSelectedSubject('');
+              setLocation('');
+              setMaxPrice('');
+              setSearchQuery('');
+              fetchTeachers();
+            }}>
               <i className="bi bi-arrow-clockwise me-1"></i>
               Refresh
             </button>
