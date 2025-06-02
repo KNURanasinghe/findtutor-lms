@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 
 const TeacherProfile = () => {
+  const { teacherId } = useParams(); // Get teacher ID from URL
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [editedUser, setEditedUser] = useState({});
-  const [updateLoading, setUpdateLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [isOwnProfile, setIsOwnProfile] = useState(false); // Check if viewing own profile
 
   // Mock user data - fallback when API fails or no teacher ID
   const mockUser = {
@@ -34,6 +36,7 @@ const TeacherProfile = () => {
     education: 'University of Cambridge',
     achievements: ['Best Teacher Award 2023', 'Top Rated Tutor', '95% Student Success Rate']
   };
+  const [updateLoading, setUpdateLoading] = useState(false);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -41,49 +44,19 @@ const TeacherProfile = () => {
         setLoading(true);
         setError(null);
         
-        // Get user data from localStorage (stored by TeacherAuth)
+        // Get logged-in user data from localStorage
         const userData = localStorage.getItem('user');
-        console.log('Raw user data from localStorage:', userData);
+        let loggedInUserId = null;
+        let loggedInTeacherId = null;
         
-        if (!userData) {
-          console.warn('No user data found in localStorage');
-          setUser(mockUser);
-          setEditedUser(mockUser);
-          setLoading(false);
-          return;
-        }
-        
-        // Parse the user data
-        let parsedUser;
-        try {
-          parsedUser = JSON.parse(userData);
-          console.log('Parsed user data:', parsedUser);
-        } catch (parseError) {
-          console.error('Error parsing user data:', parseError);
-          setUser(mockUser);
-          setEditedUser(mockUser);
-          setLoading(false);
-          return;
-        }
-        
-        // Extract teacher ID from parsed user data
-        const teacherId = parsedUser.user_id || parsedUser.teacher_id || parsedUser.id;
-        console.log('Extracted teacher ID:', teacherId);
-        console.log('User role:', parsedUser.role);
-        
-        if (!teacherId) {
-          console.warn('No teacher ID found in user data');
-          setUser(mockUser);
-          setEditedUser(mockUser);
-          setLoading(false);
-          return;
-        }
-        
-        // Verify user is a teacher
-        if (parsedUser.role !== 'teacher') {
-          console.warn('User is not a teacher, role:', parsedUser.role);
-          setError('Access denied. This page is for teachers only.');
-          return;
+        if (userData) {
+          try {
+            const parsedUser = JSON.parse(userData);
+            loggedInUserId = parsedUser.user_id || parsedUser.id;
+            console.log('Logged in user ID:', loggedInUserId);
+          } catch (parseError) {
+            console.error('Error parsing logged-in user data:', parseError);
+          }
         }
         
         // Fetch all teachers from API
@@ -96,65 +69,83 @@ const TeacherProfile = () => {
         
         const teachers = await response.json();
         console.log('API Response:', teachers);
-        console.log('Looking for teacher with ID:', teacherId);
         
-        // Find the specific teacher by ID
-        const currentTeacher = teachers.find(teacher => {
-          console.log('Checking teacher:', teacher.teacher_id, teacher.user_id);
-          return teacher.teacher_id === parseInt(teacherId) || 
-                 teacher.user_id === parseInt(teacherId) ||
-                 teacher.teacher_id === teacherId ||
-                 teacher.user_id === teacherId;
-        });
+        let currentTeacher;
+        
+        if (teacherId) {
+          // Viewing a specific teacher profile from URL parameter
+          console.log('Looking for teacher with ID:', teacherId);
+          currentTeacher = teachers.find(teacher => 
+            teacher.teacher_id === parseInt(teacherId) || 
+            teacher.teacher_id === teacherId
+          );
+          
+          if (!currentTeacher) {
+            throw new Error('Teacher profile not found');
+          }
+          
+          // Check if this is the logged-in user's own profile
+          if (loggedInUserId) {
+            const loggedInTeacher = teachers.find(teacher => 
+              teacher.user_id === parseInt(loggedInUserId) || teacher.user_id === loggedInUserId
+            );
+            if (loggedInTeacher) {
+              loggedInTeacherId = loggedInTeacher.teacher_id;
+              setIsOwnProfile(currentTeacher.teacher_id === loggedInTeacher.teacher_id);
+            }
+          }
+        } else {
+          // No specific teacher ID in URL - show logged-in user's profile
+          if (!loggedInUserId) {
+            console.warn('No user data found in localStorage and no teacher ID in URL');
+            setUser(mockUser);
+            setEditedUser(mockUser);
+            setIsOwnProfile(true);
+            setLoading(false);
+            return;
+          }
+          
+          // Find the logged-in user's teacher profile
+          currentTeacher = teachers.find(teacher => 
+            teacher.user_id === parseInt(loggedInUserId) || teacher.user_id === loggedInUserId
+          );
+          
+          if (!currentTeacher) {
+            // Create a basic profile for new teachers
+            const basicProfile = {
+              teacher_id: loggedInUserId,
+              user_id: loggedInUserId,
+              name: JSON.parse(userData).name || 'Teacher',
+              bio: 'Welcome! Please update your profile information.',
+              years_experience: 0,
+              education: '',
+              hourly_rate: 0,
+              location: '',
+              lat: 0,
+              lng: 0,
+              is_subscribed: false,
+              profile_picture: 'https://randomuser.me/api/portraits/women/1.jpg'
+            };
+            currentTeacher = basicProfile;
+          }
+          
+          setIsOwnProfile(true); // Always own profile when no URL param
+        }
         
         console.log('Found teacher:', currentTeacher);
-        
-        if (!currentTeacher) {
-          console.error('Teacher not found, available teachers:', teachers.map(t => ({ id: t.teacher_id, user_id: t.user_id, name: t.name })));
-          // Create a basic profile from login data if teacher not found in teachers API
-          const basicProfile = {
-            id: teacherId,
-            user_id: teacherId,
-            name: parsedUser.name || 'Teacher',
-            email: parsedUser.email || '',
-            subjects: 'General',
-            experience: '0 years',
-            qualifications: '',
-            hourlyRate: 'LKR 0',
-            phone: '',
-            location: '',
-            bio: 'Welcome! Please update your profile information.',
-            profilePicture: 'https://randomuser.me/api/portraits/women/1.jpg',
-            dateJoined: new Date().toISOString().split('T')[0],
-            totalStudents: 0,
-            rating: 0,
-            reviews: 0,
-            availability: 'Contact for availability',
-            preferredMedium: 'English',
-            education: '',
-            achievements: [],
-            lat: 0,
-            lng: 0,
-            is_subscribed: false
-          };
-          
-          setUser(basicProfile);
-          setEditedUser(basicProfile);
-          setLoading(false);
-          return;
-        }
+        console.log('Is own profile:', isOwnProfile);
         
         // Map API response to component structure
         const mappedUser = {
           id: currentTeacher.teacher_id,
           user_id: currentTeacher.user_id,
-          name: currentTeacher.name || parsedUser.name,
-          email: parsedUser.email || currentTeacher.email || '', 
+          name: currentTeacher.name,
+          email: '', // Email not provided in teachers API
           subjects: 'General', // Default since not provided by API
           experience: `${currentTeacher.years_experience || 0} years`,
           qualifications: currentTeacher.education || '',
           hourlyRate: `LKR ${currentTeacher.hourly_rate || 0}`,
-          phone: currentTeacher.phone || '', 
+          phone: '', // Not provided in API response
           location: currentTeacher.location || '',
           bio: currentTeacher.bio || 'Experienced teacher ready to help you learn.',
           profilePicture: currentTeacher.profile_picture || 'https://randomuser.me/api/portraits/women/1.jpg',
@@ -171,6 +162,16 @@ const TeacherProfile = () => {
           is_subscribed: currentTeacher.is_subscribed || false
         };
         
+        // If viewing own profile and logged in, get email from localStorage
+        if (isOwnProfile && userData) {
+          try {
+            const parsedUser = JSON.parse(userData);
+            mappedUser.email = parsedUser.email || '';
+          } catch (e) {
+            console.error('Error parsing user data for email:', e);
+          }
+        }
+        
         console.log('Mapped user:', mappedUser);
         
         setUser(mappedUser);
@@ -179,47 +180,52 @@ const TeacherProfile = () => {
         console.error('Error fetching teacher profile:', err);
         setError(err.message || 'Failed to load profile');
         
-        // Try to create basic profile from localStorage data
-        const userData = localStorage.getItem('user');
-        if (userData) {
-          try {
-            const parsedUser = JSON.parse(userData);
-            const basicProfile = {
-              id: parsedUser.user_id || parsedUser.id || 1,
-              user_id: parsedUser.user_id || parsedUser.id || 1,
-              name: parsedUser.name || 'Teacher',
-              email: parsedUser.email || '',
-              subjects: 'General',
-              experience: '0 years',
-              qualifications: '',
-              hourlyRate: 'LKR 0',
-              phone: '',
-              location: '',
-              bio: 'Welcome! Please update your profile information.',
-              profilePicture: 'https://randomuser.me/api/portraits/women/1.jpg',
-              dateJoined: new Date().toISOString().split('T')[0],
-              totalStudents: 0,
-              rating: 0,
-              reviews: 0,
-              availability: 'Contact for availability',
-              preferredMedium: 'English',
-              education: '',
-              achievements: [],
-              lat: 0,
-              lng: 0,
-              is_subscribed: false
-            };
-            
-            setUser(basicProfile);
-            setEditedUser(basicProfile);
-          } catch (parseError) {
-            console.error('Error creating basic profile:', parseError);
+        // Fallback only if viewing own profile
+        if (!teacherId) {
+          const userData = localStorage.getItem('user');
+          if (userData) {
+            try {
+              const parsedUser = JSON.parse(userData);
+              const basicProfile = {
+                id: parsedUser.user_id || parsedUser.id || 1,
+                user_id: parsedUser.user_id || parsedUser.id || 1,
+                name: parsedUser.name || 'Teacher',
+                email: parsedUser.email || '',
+                subjects: 'General',
+                experience: '0 years',
+                qualifications: '',
+                hourlyRate: 'LKR 0',
+                phone: '',
+                location: '',
+                bio: 'Welcome! Please update your profile information.',
+                profilePicture: 'https://randomuser.me/api/portraits/women/1.jpg',
+                dateJoined: new Date().toISOString().split('T')[0],
+                totalStudents: 0,
+                rating: 0,
+                reviews: 0,
+                availability: 'Contact for availability',
+                preferredMedium: 'English',
+                education: '',
+                achievements: [],
+                lat: 0,
+                lng: 0,
+                is_subscribed: false
+              };
+              
+              setUser(basicProfile);
+              setEditedUser(basicProfile);
+              setIsOwnProfile(true);
+            } catch (parseError) {
+              console.error('Error creating basic profile:', parseError);
+              setUser(mockUser);
+              setEditedUser(mockUser);
+              setIsOwnProfile(true);
+            }
+          } else {
             setUser(mockUser);
             setEditedUser(mockUser);
+            setIsOwnProfile(true);
           }
-        } else {
-          setUser(mockUser);
-          setEditedUser(mockUser);
         }
       } finally {
         setLoading(false);
@@ -227,7 +233,7 @@ const TeacherProfile = () => {
     };
 
     fetchUserProfile();
-  }, []);
+  }, [teacherId]); // Re-run when teacherId changes
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -482,7 +488,10 @@ const TeacherProfile = () => {
           <div className="alert alert-info" role="alert">
             <strong>Debug Info:</strong> 
             <span className="ms-2">
-              User Data: {localStorage.getItem('user') ? 'Found' : 'Not Found'}
+              URL Teacher ID: {teacherId || 'None (Own Profile)'}
+            </span>
+            <span className="ms-3">
+              Is Own Profile: {isOwnProfile ? 'Yes' : 'No'}
             </span>
             <span className="ms-3">
               User ID: {(() => {
@@ -515,7 +524,7 @@ const TeacherProfile = () => {
             <button 
               className="btn btn-sm btn-outline-secondary ms-2"
               onClick={() => {
-                console.log('Current state:', { user, error, loading });
+                console.log('Current state:', { user, error, loading, isOwnProfile, teacherId });
                 console.log('localStorage user:', localStorage.getItem('user'));
                 try {
                   const userData = localStorage.getItem('user');
@@ -578,46 +587,62 @@ const TeacherProfile = () => {
               </div>
             </div>
             <div className="col-auto">
-              <div className="btn-group me-3">
-                <button 
-                  className="btn btn-outline-danger btn-sm"
-                  onClick={handleLogout}
-                >
-                  <i className="bi bi-box-arrow-right me-2"></i>
-                  Logout
-                </button>
-              </div>
-              {!isEditing ? (
-                <button className="btn btn-primary" onClick={handleEdit}>
-                  <i className="bi bi-pencil me-2"></i>
-                  Edit Profile
-                </button>
-              ) : (
+              {isOwnProfile && (
+                <>
+                  <div className="btn-group me-3">
+                    <button 
+                      className="btn btn-outline-danger btn-sm"
+                      onClick={handleLogout}
+                    >
+                      <i className="bi bi-box-arrow-right me-2"></i>
+                      Logout
+                    </button>
+                  </div>
+                  {!isEditing ? (
+                    <button className="btn btn-primary" onClick={handleEdit}>
+                      <i className="bi bi-pencil me-2"></i>
+                      Edit Profile
+                    </button>
+                  ) : (
+                    <div className="btn-group">
+                      <button 
+                        className="btn btn-success" 
+                        onClick={handleSave}
+                        disabled={updateLoading}
+                      >
+                        {updateLoading ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-check-lg me-2"></i>
+                            Save
+                          </>
+                        )}
+                      </button>
+                      <button 
+                        className="btn btn-outline-secondary" 
+                        onClick={handleCancel}
+                        disabled={updateLoading}
+                      >
+                        <i className="bi bi-x-lg me-2"></i>
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+              {!isOwnProfile && (
                 <div className="btn-group">
-                  <button 
-                    className="btn btn-success" 
-                    onClick={handleSave}
-                    disabled={updateLoading}
-                  >
-                    {updateLoading ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <i className="bi bi-check-lg me-2"></i>
-                        Save
-                      </>
-                    )}
+                  <button className="btn btn-primary">
+                    <i className="bi bi-chat-dots me-2"></i>
+                    Message Teacher
                   </button>
-                  <button 
-                    className="btn btn-outline-secondary" 
-                    onClick={handleCancel}
-                    disabled={updateLoading}
-                  >
-                    <i className="bi bi-x-lg me-2"></i>
-                    Cancel
+                  <button className="btn btn-outline-primary">
+                    <i className="bi bi-heart me-2"></i>
+                    Save
                   </button>
                 </div>
               )}
@@ -696,7 +721,7 @@ const TeacherProfile = () => {
                 <div className="col-md-6">
                   <div className="mb-3">
                     <label className="form-label">Full Name</label>
-                    {isEditing ? (
+                    {isEditing && isOwnProfile ? (
                       <input 
                         type="text" 
                         className="form-control" 
@@ -709,7 +734,7 @@ const TeacherProfile = () => {
                   </div>
                   <div className="mb-3">
                     <label className="form-label">Email</label>
-                    {isEditing ? (
+                    {isEditing && isOwnProfile ? (
                       <input 
                         type="email" 
                         className="form-control" 
@@ -722,7 +747,7 @@ const TeacherProfile = () => {
                   </div>
                   <div className="mb-3">
                     <label className="form-label">Phone</label>
-                    {isEditing ? (
+                    {isEditing && isOwnProfile ? (
                       <input 
                         type="tel" 
                         className="form-control" 
@@ -735,7 +760,7 @@ const TeacherProfile = () => {
                   </div>
                   <div className="mb-3">
                     <label className="form-label">Location</label>
-                    {isEditing ? (
+                    {isEditing && isOwnProfile ? (
                       <input 
                         type="text" 
                         className="form-control" 
@@ -748,7 +773,7 @@ const TeacherProfile = () => {
                   </div>
                   <div className="mb-3">
                     <label className="form-label">Subjects</label>
-                    {isEditing ? (
+                    {isEditing && isOwnProfile ? (
                       <input 
                         type="text" 
                         className="form-control" 
@@ -764,7 +789,7 @@ const TeacherProfile = () => {
                 <div className="col-md-6">
                   <div className="mb-3">
                     <label className="form-label">Experience</label>
-                    {isEditing ? (
+                    {isEditing && isOwnProfile ? (
                       <>
                         <input 
                           type="text" 
@@ -781,7 +806,7 @@ const TeacherProfile = () => {
                   </div>
                   <div className="mb-3">
                     <label className="form-label">Hourly Rate</label>
-                    {isEditing ? (
+                    {isEditing && isOwnProfile ? (
                       <>
                         <input 
                           type="text" 
@@ -798,7 +823,7 @@ const TeacherProfile = () => {
                   </div>
                   <div className="mb-3">
                     <label className="form-label">Availability</label>
-                    {isEditing ? (
+                    {isEditing && isOwnProfile ? (
                       <input 
                         type="text" 
                         className="form-control" 
@@ -811,7 +836,7 @@ const TeacherProfile = () => {
                   </div>
                   <div className="mb-3">
                     <label className="form-label">Preferred Medium</label>
-                    {isEditing ? (
+                    {isEditing && isOwnProfile ? (
                       <input 
                         type="text" 
                         className="form-control" 
@@ -824,7 +849,7 @@ const TeacherProfile = () => {
                   </div>
                   <div className="mb-3">
                     <label className="form-label">Bio</label>
-                    {isEditing ? (
+                    {isEditing && isOwnProfile ? (
                       <textarea 
                         className="form-control" 
                         rows="3" 
@@ -848,7 +873,7 @@ const TeacherProfile = () => {
                 <div className="col-12">
                   <div className="mb-3">
                     <label className="form-label">Education</label>
-                    {isEditing ? (
+                    {isEditing && isOwnProfile ? (
                       <input 
                         type="text" 
                         className="form-control" 
@@ -861,7 +886,7 @@ const TeacherProfile = () => {
                   </div>
                   <div className="mb-3">
                     <label className="form-label">Qualifications</label>
-                    {isEditing ? (
+                    {isEditing && isOwnProfile ? (
                       <textarea 
                         className="form-control" 
                         rows="4" 
