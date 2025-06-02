@@ -4,7 +4,7 @@ import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'http://145.223.21.62:5000/api';
 
 const StudentAuth = () => {
   const navigate = useNavigate();
@@ -48,6 +48,9 @@ const StudentAuth = () => {
           email: formData.email,
           password: formData.password
         });
+        console.log('Full API Response:', response);
+console.log('Response Data:', response.data);
+console.log('User Role:', response.data.role);
 
         if (response.data.role !== 'student') {
           throw new Error('Invalid account type. Please use student login.');
@@ -55,7 +58,8 @@ const StudentAuth = () => {
 
         // Store user data in localStorage
         localStorage.setItem('user', JSON.stringify(response.data));
-        navigate('/dashboard/student');
+        navigate('/dashboard/student',{ replace: true });
+        console.log('User navigate success:');
       } else {
         // Registration logic
         if (!formData.email || !formData.password || !formData.name) {

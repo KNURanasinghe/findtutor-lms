@@ -4,7 +4,7 @@ import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'http://145.223.21.62:5000/api';
 
 const TeacherAuth = () => {
   const navigate = useNavigate();
@@ -55,7 +55,7 @@ const TeacherAuth = () => {
 
         // Store user data in localStorage
         localStorage.setItem('user', JSON.stringify(response.data));
-        navigate('/dashboard/teacher');
+        navigate('/dashboard/teacher',{ replace: true });
       } else {
         // Registration logic
         if (!formData.email || !formData.password || !formData.name) {
