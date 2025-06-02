@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
+import { useAuth } from '../../context/AuthContext'; // Import useAuth
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
-
-const API_BASE_URL = 'http://145.223.21.62:5000/api';
 
 const StudentAuth = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { login, register, user, loading: authLoading } = useAuth(); // Use AuthContext
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -23,6 +22,13 @@ const StudentAuth = () => {
     // Check if we're on the login or register route
     setIsLogin(location.pathname.includes('/login'));
   }, [location]);
+
+  useEffect(() => {
+    // Check if user is already logged in via AuthContext
+    if (user && user.role === 'student') {
+      navigate('/dashboard/student', { replace: true });
+    }
+  }, [user, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -39,29 +45,26 @@ const StudentAuth = () => {
 
     try {
       if (isLogin) {
-        // Login logic
+        // Login logic using AuthContext
         if (!formData.email || !formData.password) {
           throw new Error('Please fill in all required fields');
         }
 
-        const response = await axios.post(`${API_BASE_URL}/users/login`, {
-          email: formData.email,
-          password: formData.password
-        });
-        console.log('Full API Response:', response);
-console.log('Response Data:', response.data);
-console.log('User Role:', response.data.role);
-
-        if (response.data.role !== 'student') {
+        console.log('Attempting login for student...');
+        
+        // Use AuthContext login function
+        const userData = await login(formData.email, formData.password, 'student');
+        
+        console.log('Login successful:', userData);
+        
+        if (userData.role !== 'student') {
           throw new Error('Invalid account type. Please use student login.');
         }
-
-        // Store user data in localStorage
-        localStorage.setItem('user', JSON.stringify(response.data));
-        navigate('/dashboard/student',{ replace: true });
-        console.log('User navigate success:');
+        
+        // Navigation will happen automatically via useEffect when user state updates
+        
       } else {
-        // Registration logic
+        // Registration logic using AuthContext
         if (!formData.email || !formData.password || !formData.name) {
           throw new Error('Please fill in all required fields');
         }
@@ -77,18 +80,44 @@ console.log('User Role:', response.data.role);
           role: 'student'
         };
 
-        const response = await axios.post(`${API_BASE_URL}/users`, userData);
+        console.log('Attempting registration for student...');
         
-        // Store user data in localStorage
-        localStorage.setItem('user', JSON.stringify(response.data));
-        navigate('/dashboard/student');
+        // Use AuthContext register function
+        const newUser = await register(userData);
+        
+        console.log('Registration successful:', newUser);
+        
+        if (newUser.role !== 'student') {
+          throw new Error('Registration failed. Please try again.');
+        }
+        
+        // Navigation will happen automatically via useEffect when user state updates
       }
     } catch (error) {
-      setError(error.response?.data?.message || error.message || 'An error occurred');
+      console.error('Auth error:', error);
+      setError(error.message || 'An error occurred');
     } finally {
       setLoading(false);
     }
   };
+
+  // Show loading if AuthContext is still loading
+  if (authLoading) {
+    return (
+      <div className="container mt-5">
+        <div className="row justify-content-center">
+          <div className="col-md-6 col-lg-5">
+            <div className="text-center">
+              <div className="spinner-border text-primary" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </div>
+              <p className="mt-3">Loading...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mt-5">
@@ -232,4 +261,4 @@ console.log('User Role:', response.data.role);
   );
 };
 
-export default StudentAuth; 
+export default StudentAuth;

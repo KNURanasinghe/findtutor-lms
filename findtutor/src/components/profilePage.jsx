@@ -1245,6 +1245,7 @@ const UniversalProfile = () => {
         .profile-container {
           background: #f8fafc;
           min-height: 100vh;
+          padding-top: 80px;
         }
 
         .profile-header {
