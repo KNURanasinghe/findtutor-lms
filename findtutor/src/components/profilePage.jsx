@@ -81,65 +81,102 @@ const UniversalProfile = () => {
         
         if (profileId) {
           // Viewing a specific profile from URL parameter
-          // We need to determine if this is a teacher or student profile
-          // Try teachers first, then students
+          console.log('=== DEBUGGING PROFILE FETCH ===');
+          console.log('ProfileId from URL:', profileId, typeof profileId);
+          
+          // Convert profileId to number for comparison
+          const numericProfileId = parseInt(profileId, 10);
+          console.log('Numeric ProfileId:', numericProfileId);
+          
+          // Try teachers first
           try {
             console.log('Fetching teachers from API...');
             const teachersResponse = await fetch('http://145.223.21.62:5000/api/teachers');
             
             if (teachersResponse.ok) {
               const teachers = await teachersResponse.json();
-              currentProfile = teachers.find(teacher => 
-                teacher.teacher_id === parseInt(profileId) || 
-                teacher.teacher_id === profileId
-              );
+              console.log('All teachers from API:', teachers.map(t => ({ 
+                teacher_id: t.teacher_id, 
+                name: t.name,
+                user_id: t.user_id 
+              })));
+              
+              // Try multiple matching strategies
+              currentProfile = teachers.find(teacher => {
+                const matchById = teacher.teacher_id === numericProfileId || teacher.teacher_id === profileId;
+                const matchByString = String(teacher.teacher_id) === String(profileId);
+                console.log(`Checking teacher ${teacher.name}: teacher_id=${teacher.teacher_id}, matches=${matchById || matchByString}`);
+                return matchById || matchByString;
+              });
+              
+              console.log('Teacher search result:', currentProfile);
               
               if (currentProfile) {
                 profileRole = 'teacher';
-                console.log('Found teacher profile:', currentProfile);
+                console.log('Found teacher profile:', currentProfile.name);
                 
                 // Check if this is the logged-in user's own profile
                 if (loggedInUserId && loggedInUserRole === 'teacher') {
-                  const loggedInTeacher = teachers.find(teacher => 
-                    teacher.user_id === parseInt(loggedInUserId) || teacher.user_id === loggedInUserId
-                  );
+                  const loggedInTeacher = teachers.find(teacher => {
+                    const matches = teacher.user_id === parseInt(loggedInUserId) || teacher.user_id === loggedInUserId;
+                    return matches;
+                  });
                   if (loggedInTeacher) {
                     setIsOwnProfile(currentProfile.teacher_id === loggedInTeacher.teacher_id);
                   }
+                } else {
+                  setIsOwnProfile(false); // Not own profile if different role or not logged in
                 }
               }
+            } else {
+              console.error('Failed to fetch teachers:', teachersResponse.status);
             }
           } catch (teacherError) {
-            console.log('Error fetching teachers, trying students...');
+            console.error('Error fetching teachers:', teacherError);
           }
           
           // If not found in teachers, try students
           if (!currentProfile) {
             try {
-              console.log('Fetching students from API...');
+              console.log('Teacher not found, trying students...');
               const studentsResponse = await fetch('http://145.223.21.62:5000/api/students');
               
               if (studentsResponse.ok) {
                 const students = await studentsResponse.json();
-                currentProfile = students.find(student => 
-                  student.student_id === parseInt(profileId) || 
-                  student.student_id === profileId
-                );
+                console.log('All students from API:', students.map(s => ({ 
+                  student_id: s.student_id, 
+                  name: s.name,
+                  user_id: s.user_id 
+                })));
+                
+                currentProfile = students.find(student => {
+                  const matchById = student.student_id === numericProfileId || student.student_id === profileId;
+                  const matchByString = String(student.student_id) === String(profileId);
+                  console.log(`Checking student ${student.name}: student_id=${student.student_id}, matches=${matchById || matchByString}`);
+                  return matchById || matchByString;
+                });
+                
+                console.log('Student search result:', currentProfile);
                 
                 if (currentProfile) {
                   profileRole = 'student';
-                  console.log('Found student profile:', currentProfile);
+                  console.log('Found student profile:', currentProfile.name);
                   
                   // Check if this is the logged-in user's own profile
                   if (loggedInUserId && loggedInUserRole === 'student') {
-                    const loggedInStudent = students.find(student => 
-                      student.user_id === parseInt(loggedInUserId) || student.user_id === loggedInUserId
-                    );
+                    const loggedInStudent = students.find(student => {
+                      const matches = student.user_id === parseInt(loggedInUserId) || student.user_id === loggedInUserId;
+                      return matches;
+                    });
                     if (loggedInStudent) {
                       setIsOwnProfile(currentProfile.student_id === loggedInStudent.student_id);
                     }
+                  } else {
+                    setIsOwnProfile(false); // Not own profile if different role or not logged in
                   }
                 }
+              } else {
+                console.error('Failed to fetch students:', studentsResponse.status);
               }
             } catch (studentError) {
               console.error('Error fetching students:', studentError);
@@ -147,10 +184,15 @@ const UniversalProfile = () => {
           }
           
           if (!currentProfile) {
-            throw new Error('Profile not found');
+            console.error('=== PROFILE NOT FOUND ===');
+            console.error('Searched for profileId:', profileId);
+            console.error('Searched in both teachers and students');
+            throw new Error(`Profile not found for ID: ${profileId}. This profile may not exist or there may be a data issue.`);
           }
         } else {
           // No specific profile ID in URL - show logged-in user's profile
+          console.log('No profileId in URL, showing logged-in user profile');
+          
           if (!loggedInUserId || !loggedInUserRole) {
             console.warn('No user data found in localStorage and no profile ID in URL');
             setUser(loggedInUserRole === 'student' ? mockStudent : mockTeacher);
@@ -222,7 +264,8 @@ const UniversalProfile = () => {
           setIsOwnProfile(true); // Always own profile when no URL param
         }
         
-        console.log('Found profile:', currentProfile);
+        console.log('=== FINAL RESULTS ===');
+        console.log('Found profile:', currentProfile?.name);
         console.log('Profile role:', profileRole);
         console.log('Is own profile:', isOwnProfile);
         
@@ -234,18 +277,18 @@ const UniversalProfile = () => {
             id: currentProfile.teacher_id,
             user_id: currentProfile.user_id,
             name: currentProfile.name,
-            email: '', // Email not provided in teachers API
-            subjects: 'General', // Default since not provided by API
+            email: currentProfile.email || '', // Get email from API response
+            subjects: currentProfile.subjects || 'General', // Use subjects from API or default
             experience: `${currentProfile.years_experience || 0} years`,
             qualifications: currentProfile.education || '',
             hourlyRate: `LKR ${currentProfile.hourly_rate || 0}`,
-            phone: '', // Not provided in API response
+            phone: currentProfile.phone || '', // Get phone from API response
             location: currentProfile.location || '',
             bio: currentProfile.bio || 'Experienced teacher ready to help you learn.',
             profilePicture: currentProfile.profile_picture || 'https://randomuser.me/api/portraits/women/1.jpg',
             dateJoined: currentProfile.date_joined || new Date().toISOString().split('T')[0],
             totalStudents: currentProfile.total_students || 0,
-            rating: currentProfile.rating || 0,
+            rating: currentProfile.rating || 4.5,
             reviews: currentProfile.reviews_count || 0,
             availability: currentProfile.availability || 'Contact for availability',
             preferredMedium: currentProfile.preferred_medium || 'English',
@@ -261,14 +304,14 @@ const UniversalProfile = () => {
             id: currentProfile.student_id,
             user_id: currentProfile.user_id,
             name: currentProfile.name,
-            email: '', // Email not provided in students API
-            phone: '', // Not provided in API response
+            email: currentProfile.email || '', // Get email from API response
+            phone: currentProfile.phone || '', // Get phone from API response
             location: currentProfile.location || '',
             bio: currentProfile.bio || 'Student eager to learn and grow.',
             profilePicture: currentProfile.profile_picture || 'https://randomuser.me/api/portraits/men/1.jpg',
             dateJoined: currentProfile.date_joined || new Date().toISOString().split('T')[0],
             educationLevel: currentProfile.education_level || '',
-            subjects: 'Various', // Default for students
+            subjects: currentProfile.subjects || 'Various', // Get subjects from API or default
             achievements: currentProfile.achievements || [],
             role: 'student'
           };
@@ -291,8 +334,17 @@ const UniversalProfile = () => {
         setUserRole(profileRole);
       } catch (err) {
         console.error('Error fetching profile:', err);
+        console.log('Profile ID that failed:', profileId);
+        console.log('Error details:', err.message);
         setError(err.message || 'Failed to load profile');
         
+        // DO NOT use fallback for viewing other people's profiles
+        if (profileId) {
+          console.log('Not using fallback because we are viewing a specific profile ID:', profileId);
+          return; // Don't show fallback for other people's profiles
+        }
+        
+        console.log('Using fallback only because no profileId was provided (viewing own profile)');
         // Fallback only if viewing own profile
         if (!profileId) {
           const userData = localStorage.getItem('user');
@@ -613,17 +665,30 @@ const UniversalProfile = () => {
               <i className="bi bi-exclamation-triangle-fill me-2"></i>
               {error}
             </div>
-            <p className="text-muted mb-3">Don't worry! We're showing your basic profile.</p>
-            <button 
-              className="btn btn-primary me-2" 
-              onClick={() => {
-                setError(null);
-                window.location.reload();
-              }}
-            >
-              <i className="bi bi-arrow-clockwise me-2"></i>
-              Try Again
-            </button>
+            <p className="text-muted mb-3">
+              {profileId ? 'The requested profile could not be found.' : "Don't worry! We're showing your basic profile."}
+            </p>
+            <div className="btn-group">
+              <button 
+                className="btn btn-primary" 
+                onClick={() => {
+                  setError(null);
+                  window.location.reload();
+                }}
+              >
+                <i className="bi bi-arrow-clockwise me-2"></i>
+                Try Again
+              </button>
+              {profileId && (
+                <button 
+                  className="btn btn-outline-secondary" 
+                  onClick={() => window.history.back()}
+                >
+                  <i className="bi bi-arrow-left me-2"></i>
+                  Go Back
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
