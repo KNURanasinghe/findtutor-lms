@@ -52,7 +52,8 @@ const AppContent = () => {
             <Route path="/contact" element={<Contact />} />
             <Route path="/find-teachers" element={<FindTeachers />} />
             <Route path="/teacher-profile" element={<UniversalProfile />} />
-              <Route path="/teacher/:teacherId" element={<UniversalProfile />} />
+               <Route path="/teacher/:profileId" element={<UniversalProfile />} /> {/* Specific teacher profile */}
+        <Route path="/student/:profileId" element={<UniversalProfile />} />
             <Route path="/student-posts" element={<StudentPosts />} />
             <Route path="/login/student" element={<StudentAuth />} />
             <Route path="/login/teacher" element={<TeacherAuth />} />

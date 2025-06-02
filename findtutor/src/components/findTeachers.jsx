@@ -375,7 +375,7 @@ const FindTeachers = () => {
                     </div>
                     <div className="col-md-3">
                       <div className="teacher-actions">
-                        <Link to={`/teacher/${teacher.id}`} className="btn btn-primary">
+                        <Link to={`/teacher/${teacher.id}`} className="btn btn-primary" onClick={() => console.log('Clicking teacher profile:', teacher.id, teacher.name)}>
                           View Profile
                         </Link>
                         <button className="btn btn-outline-primary">
