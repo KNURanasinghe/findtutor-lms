@@ -15,7 +15,8 @@ import TeacherDashboard from './components/dashboard/TeacherDashboard'
 import StudentDashboard from './components/StudentDashboard'
 import './App.css'
 import 'bootstrap/dist/css/bootstrap.min.css'
-import TeacherProfile from './components/teacherProfile'
+import TeacherProfile from './components/profilePage'
+import UniversalProfile from './components/profilePage'
 
 // Protected Route component
 const ProtectedRoute = ({ children, requiredRole }) => {
@@ -50,8 +51,8 @@ const AppContent = () => {
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/find-teachers" element={<FindTeachers />} />
-            <Route path="/teacher-profile" element={<TeacherProfile />} />
-              <Route path="/teacher/:teacherId" element={<TeacherProfile />} />
+            <Route path="/teacher-profile" element={<UniversalProfile />} />
+              <Route path="/teacher/:teacherId" element={<UniversalProfile />} />
             <Route path="/student-posts" element={<StudentPosts />} />
             <Route path="/login/student" element={<StudentAuth />} />
             <Route path="/login/teacher" element={<TeacherAuth />} />

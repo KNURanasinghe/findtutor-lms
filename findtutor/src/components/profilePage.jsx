@@ -3,8 +3,8 @@ import { useParams } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 
-const TeacherProfile = () => {
-  const { teacherId } = useParams(); // Get teacher ID from URL
+const UniversalProfile = () => {
+  const { profileId } = useParams(); // Get profile ID from URL (can be teacher or student)
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -12,20 +12,22 @@ const TeacherProfile = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedUser, setEditedUser] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
-  const [isOwnProfile, setIsOwnProfile] = useState(false); // Check if viewing own profile
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
+  const [userRole, setUserRole] = useState(null); // 'teacher' or 'student'
+  const [updateLoading, setUpdateLoading] = useState(false);
 
-  // Mock user data - fallback when API fails or no teacher ID
-  const mockUser = {
+  // Mock data for fallback
+  const mockTeacher = {
     id: 1,
     name: 'Dr. Sarah Johnson',
     email: 'sarah.johnson@example.com',
     subjects: 'Mathematics, Physics, Chemistry',
     experience: '8 years',
-    qualifications: 'PhD in Mathematics from University of Cambridge, Masters in Applied Physics, Certified Secondary Education Teacher',
+    qualifications: 'PhD in Mathematics from University of Cambridge',
     hourlyRate: 'LKR 2500',
     phone: '+94 77 123 4567',
     location: 'Colombo, Sri Lanka',
-    bio: 'Passionate educator with over 8 years of experience in teaching mathematics and physics. Specialized in helping students excel in advanced level examinations.',
+    bio: 'Passionate educator with over 8 years of experience.',
     profilePicture: 'https://randomuser.me/api/portraits/women/1.jpg',
     dateJoined: '2020-03-15',
     totalStudents: 156,
@@ -34,9 +36,22 @@ const TeacherProfile = () => {
     availability: 'Weekdays 2PM-8PM, Weekends 9AM-5PM',
     preferredMedium: 'English, Sinhala',
     education: 'University of Cambridge',
-    achievements: ['Best Teacher Award 2023', 'Top Rated Tutor', '95% Student Success Rate']
+    achievements: ['Best Teacher Award 2023', 'Top Rated Tutor']
   };
-  const [updateLoading, setUpdateLoading] = useState(false);
+
+  const mockStudent = {
+    id: 1,
+    name: 'John Doe',
+    email: 'john.doe@example.com',
+    phone: '+94 77 987 6543',
+    location: 'Colombo, Sri Lanka',
+    bio: 'Enthusiastic student looking to improve my academic performance.',
+    profilePicture: 'https://randomuser.me/api/portraits/men/1.jpg',
+    dateJoined: '2023-01-15',
+    educationLevel: 'College',
+    subjects: 'Mathematics, Science',
+    achievements: ['Honor Roll 2023', 'Science Fair Winner']
+  };
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -47,120 +62,217 @@ const TeacherProfile = () => {
         // Get logged-in user data from localStorage
         const userData = localStorage.getItem('user');
         let loggedInUserId = null;
-        let loggedInTeacherId = null;
+        let loggedInUserRole = null;
         
         if (userData) {
           try {
             const parsedUser = JSON.parse(userData);
             loggedInUserId = parsedUser.user_id || parsedUser.id;
-            console.log('Logged in user ID:', loggedInUserId);
+            loggedInUserRole = parsedUser.role; // 'teacher' or 'student'
+            setUserRole(loggedInUserRole);
+            console.log('Logged in user ID:', loggedInUserId, 'Role:', loggedInUserRole);
           } catch (parseError) {
             console.error('Error parsing logged-in user data:', parseError);
           }
         }
         
-        // Fetch all teachers from API
-        console.log('Fetching teachers from API...');
-        const response = await fetch('http://145.223.21.62:5000/api/teachers');
+        let currentProfile;
+        let profileRole = loggedInUserRole; // Default to logged-in user's role
         
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const teachers = await response.json();
-        console.log('API Response:', teachers);
-        
-        let currentTeacher;
-        
-        if (teacherId) {
-          // Viewing a specific teacher profile from URL parameter
-          console.log('Looking for teacher with ID:', teacherId);
-          currentTeacher = teachers.find(teacher => 
-            teacher.teacher_id === parseInt(teacherId) || 
-            teacher.teacher_id === teacherId
-          );
-          
-          if (!currentTeacher) {
-            throw new Error('Teacher profile not found');
+        if (profileId) {
+          // Viewing a specific profile from URL parameter
+          // We need to determine if this is a teacher or student profile
+          // Try teachers first, then students
+          try {
+            console.log('Fetching teachers from API...');
+            const teachersResponse = await fetch('http://145.223.21.62:5000/api/teachers');
+            
+            if (teachersResponse.ok) {
+              const teachers = await teachersResponse.json();
+              currentProfile = teachers.find(teacher => 
+                teacher.teacher_id === parseInt(profileId) || 
+                teacher.teacher_id === profileId
+              );
+              
+              if (currentProfile) {
+                profileRole = 'teacher';
+                console.log('Found teacher profile:', currentProfile);
+                
+                // Check if this is the logged-in user's own profile
+                if (loggedInUserId && loggedInUserRole === 'teacher') {
+                  const loggedInTeacher = teachers.find(teacher => 
+                    teacher.user_id === parseInt(loggedInUserId) || teacher.user_id === loggedInUserId
+                  );
+                  if (loggedInTeacher) {
+                    setIsOwnProfile(currentProfile.teacher_id === loggedInTeacher.teacher_id);
+                  }
+                }
+              }
+            }
+          } catch (teacherError) {
+            console.log('Error fetching teachers, trying students...');
           }
           
-          // Check if this is the logged-in user's own profile
-          if (loggedInUserId) {
-            const loggedInTeacher = teachers.find(teacher => 
-              teacher.user_id === parseInt(loggedInUserId) || teacher.user_id === loggedInUserId
-            );
-            if (loggedInTeacher) {
-              loggedInTeacherId = loggedInTeacher.teacher_id;
-              setIsOwnProfile(currentTeacher.teacher_id === loggedInTeacher.teacher_id);
+          // If not found in teachers, try students
+          if (!currentProfile) {
+            try {
+              console.log('Fetching students from API...');
+              const studentsResponse = await fetch('http://145.223.21.62:5000/api/students');
+              
+              if (studentsResponse.ok) {
+                const students = await studentsResponse.json();
+                currentProfile = students.find(student => 
+                  student.student_id === parseInt(profileId) || 
+                  student.student_id === profileId
+                );
+                
+                if (currentProfile) {
+                  profileRole = 'student';
+                  console.log('Found student profile:', currentProfile);
+                  
+                  // Check if this is the logged-in user's own profile
+                  if (loggedInUserId && loggedInUserRole === 'student') {
+                    const loggedInStudent = students.find(student => 
+                      student.user_id === parseInt(loggedInUserId) || student.user_id === loggedInUserId
+                    );
+                    if (loggedInStudent) {
+                      setIsOwnProfile(currentProfile.student_id === loggedInStudent.student_id);
+                    }
+                  }
+                }
+              }
+            } catch (studentError) {
+              console.error('Error fetching students:', studentError);
             }
           }
+          
+          if (!currentProfile) {
+            throw new Error('Profile not found');
+          }
         } else {
-          // No specific teacher ID in URL - show logged-in user's profile
-          if (!loggedInUserId) {
-            console.warn('No user data found in localStorage and no teacher ID in URL');
-            setUser(mockUser);
-            setEditedUser(mockUser);
+          // No specific profile ID in URL - show logged-in user's profile
+          if (!loggedInUserId || !loggedInUserRole) {
+            console.warn('No user data found in localStorage and no profile ID in URL');
+            setUser(loggedInUserRole === 'student' ? mockStudent : mockTeacher);
+            setEditedUser(loggedInUserRole === 'student' ? mockStudent : mockTeacher);
             setIsOwnProfile(true);
             setLoading(false);
             return;
           }
           
-          // Find the logged-in user's teacher profile
-          currentTeacher = teachers.find(teacher => 
-            teacher.user_id === parseInt(loggedInUserId) || teacher.user_id === loggedInUserId
-          );
-          
-          if (!currentTeacher) {
-            // Create a basic profile for new teachers
-            const basicProfile = {
-              teacher_id: loggedInUserId,
-              user_id: loggedInUserId,
-              name: JSON.parse(userData).name || 'Teacher',
-              bio: 'Welcome! Please update your profile information.',
-              years_experience: 0,
-              education: '',
-              hourly_rate: 0,
-              location: '',
-              lat: 0,
-              lng: 0,
-              is_subscribed: false,
-              profile_picture: 'https://randomuser.me/api/portraits/women/1.jpg'
-            };
-            currentTeacher = basicProfile;
+          if (loggedInUserRole === 'teacher') {
+            // Fetch teachers and find logged-in user's profile
+            const teachersResponse = await fetch('http://145.223.21.62:5000/api/teachers');
+            if (!teachersResponse.ok) {
+              throw new Error(`Failed to fetch teachers: ${teachersResponse.status}`);
+            }
+            
+            const teachers = await teachersResponse.json();
+            currentProfile = teachers.find(teacher => 
+              teacher.user_id === parseInt(loggedInUserId) || teacher.user_id === loggedInUserId
+            );
+            
+            if (!currentProfile) {
+              // Create a basic teacher profile for new teachers
+              const basicProfile = {
+                teacher_id: loggedInUserId,
+                user_id: loggedInUserId,
+                name: JSON.parse(userData).name || 'Teacher',
+                bio: 'Welcome! Please update your profile information.',
+                years_experience: 0,
+                education: '',
+                hourly_rate: 0,
+                location: '',
+                lat: 0,
+                lng: 0,
+                is_subscribed: false,
+                profile_picture: 'https://randomuser.me/api/portraits/women/1.jpg'
+              };
+              currentProfile = basicProfile;
+            }
+            profileRole = 'teacher';
+          } else if (loggedInUserRole === 'student') {
+            // Fetch students and find logged-in user's profile
+            const studentsResponse = await fetch('http://145.223.21.62:5000/api/students');
+            if (!studentsResponse.ok) {
+              throw new Error(`Failed to fetch students: ${studentsResponse.status}`);
+            }
+            
+            const students = await studentsResponse.json();
+            currentProfile = students.find(student => 
+              student.user_id === parseInt(loggedInUserId) || student.user_id === loggedInUserId
+            );
+            
+            if (!currentProfile) {
+              // Create a basic student profile for new students
+              const basicProfile = {
+                student_id: loggedInUserId,
+                user_id: loggedInUserId,
+                name: JSON.parse(userData).name || 'Student',
+                bio: 'Welcome! Please update your profile information.',
+                education_level: '',
+                location: '',
+                profile_picture: 'https://randomuser.me/api/portraits/men/1.jpg'
+              };
+              currentProfile = basicProfile;
+            }
+            profileRole = 'student';
           }
           
           setIsOwnProfile(true); // Always own profile when no URL param
         }
         
-        console.log('Found teacher:', currentTeacher);
+        console.log('Found profile:', currentProfile);
+        console.log('Profile role:', profileRole);
         console.log('Is own profile:', isOwnProfile);
         
-        // Map API response to component structure
-        const mappedUser = {
-          id: currentTeacher.teacher_id,
-          user_id: currentTeacher.user_id,
-          name: currentTeacher.name,
-          email: '', // Email not provided in teachers API
-          subjects: 'General', // Default since not provided by API
-          experience: `${currentTeacher.years_experience || 0} years`,
-          qualifications: currentTeacher.education || '',
-          hourlyRate: `LKR ${currentTeacher.hourly_rate || 0}`,
-          phone: '', // Not provided in API response
-          location: currentTeacher.location || '',
-          bio: currentTeacher.bio || 'Experienced teacher ready to help you learn.',
-          profilePicture: currentTeacher.profile_picture || 'https://randomuser.me/api/portraits/women/1.jpg',
-          dateJoined: currentTeacher.date_joined || new Date().toISOString().split('T')[0],
-          totalStudents: currentTeacher.total_students || 0,
-          rating: currentTeacher.rating || 0,
-          reviews: currentTeacher.reviews_count || 0,
-          availability: currentTeacher.availability || 'Contact for availability',
-          preferredMedium: currentTeacher.preferred_medium || 'English',
-          education: currentTeacher.education || '',
-          achievements: currentTeacher.achievements || [],
-          lat: currentTeacher.lat || 0,
-          lng: currentTeacher.lng || 0,
-          is_subscribed: currentTeacher.is_subscribed || false
-        };
+        // Map API response to component structure based on role
+        let mappedUser;
+        
+        if (profileRole === 'teacher') {
+          mappedUser = {
+            id: currentProfile.teacher_id,
+            user_id: currentProfile.user_id,
+            name: currentProfile.name,
+            email: '', // Email not provided in teachers API
+            subjects: 'General', // Default since not provided by API
+            experience: `${currentProfile.years_experience || 0} years`,
+            qualifications: currentProfile.education || '',
+            hourlyRate: `LKR ${currentProfile.hourly_rate || 0}`,
+            phone: '', // Not provided in API response
+            location: currentProfile.location || '',
+            bio: currentProfile.bio || 'Experienced teacher ready to help you learn.',
+            profilePicture: currentProfile.profile_picture || 'https://randomuser.me/api/portraits/women/1.jpg',
+            dateJoined: currentProfile.date_joined || new Date().toISOString().split('T')[0],
+            totalStudents: currentProfile.total_students || 0,
+            rating: currentProfile.rating || 0,
+            reviews: currentProfile.reviews_count || 0,
+            availability: currentProfile.availability || 'Contact for availability',
+            preferredMedium: currentProfile.preferred_medium || 'English',
+            education: currentProfile.education || '',
+            achievements: currentProfile.achievements || [],
+            lat: currentProfile.lat || 0,
+            lng: currentProfile.lng || 0,
+            is_subscribed: currentProfile.is_subscribed || false,
+            role: 'teacher'
+          };
+        } else if (profileRole === 'student') {
+          mappedUser = {
+            id: currentProfile.student_id,
+            user_id: currentProfile.user_id,
+            name: currentProfile.name,
+            email: '', // Email not provided in students API
+            phone: '', // Not provided in API response
+            location: currentProfile.location || '',
+            bio: currentProfile.bio || 'Student eager to learn and grow.',
+            profilePicture: currentProfile.profile_picture || 'https://randomuser.me/api/portraits/men/1.jpg',
+            dateJoined: currentProfile.date_joined || new Date().toISOString().split('T')[0],
+            educationLevel: currentProfile.education_level || '',
+            subjects: 'Various', // Default for students
+            achievements: currentProfile.achievements || [],
+            role: 'student'
+          };
+        }
         
         // If viewing own profile and logged in, get email from localStorage
         if (isOwnProfile && userData) {
@@ -176,17 +288,33 @@ const TeacherProfile = () => {
         
         setUser(mappedUser);
         setEditedUser(mappedUser);
+        setUserRole(profileRole);
       } catch (err) {
-        console.error('Error fetching teacher profile:', err);
+        console.error('Error fetching profile:', err);
         setError(err.message || 'Failed to load profile');
         
         // Fallback only if viewing own profile
-        if (!teacherId) {
+        if (!profileId) {
           const userData = localStorage.getItem('user');
           if (userData) {
             try {
               const parsedUser = JSON.parse(userData);
-              const basicProfile = {
+              const role = parsedUser.role || 'teacher';
+              const basicProfile = role === 'student' ? {
+                id: parsedUser.user_id || parsedUser.id || 1,
+                user_id: parsedUser.user_id || parsedUser.id || 1,
+                name: parsedUser.name || 'Student',
+                email: parsedUser.email || '',
+                phone: '',
+                location: '',
+                bio: 'Welcome! Please update your profile information.',
+                profilePicture: 'https://randomuser.me/api/portraits/men/1.jpg',
+                dateJoined: new Date().toISOString().split('T')[0],
+                educationLevel: '',
+                subjects: 'Various',
+                achievements: [],
+                role: 'student'
+              } : {
                 id: parsedUser.user_id || parsedUser.id || 1,
                 user_id: parsedUser.user_id || parsedUser.id || 1,
                 name: parsedUser.name || 'Teacher',
@@ -209,22 +337,27 @@ const TeacherProfile = () => {
                 achievements: [],
                 lat: 0,
                 lng: 0,
-                is_subscribed: false
+                is_subscribed: false,
+                role: 'teacher'
               };
               
               setUser(basicProfile);
               setEditedUser(basicProfile);
               setIsOwnProfile(true);
+              setUserRole(role);
             } catch (parseError) {
               console.error('Error creating basic profile:', parseError);
-              setUser(mockUser);
-              setEditedUser(mockUser);
+              const defaultProfile = mockTeacher;
+              setUser(defaultProfile);
+              setEditedUser(defaultProfile);
               setIsOwnProfile(true);
+              setUserRole('teacher');
             }
           } else {
-            setUser(mockUser);
-            setEditedUser(mockUser);
+            setUser(mockTeacher);
+            setEditedUser(mockTeacher);
             setIsOwnProfile(true);
+            setUserRole('teacher');
           }
         }
       } finally {
@@ -233,11 +366,12 @@ const TeacherProfile = () => {
     };
 
     fetchUserProfile();
-  }, [teacherId]); // Re-run when teacherId changes
+  }, [profileId]); // Re-run when profileId changes
 
   const handleLogout = () => {
     localStorage.removeItem('user');
-    window.location.href = '/login/teacher'; // Redirect to login page
+    const loginPath = userRole === 'student' ? '/login/student' : '/login/teacher';
+    window.location.href = loginPath;
   };
 
   const handleEdit = () => {
@@ -247,7 +381,6 @@ const TeacherProfile = () => {
 
   const handleSave = async () => {
     try {
-      // Validate form before saving
       if (!validateForm()) {
         return;
       }
@@ -255,7 +388,6 @@ const TeacherProfile = () => {
       setUpdateLoading(true);
       setError(null);
       
-      // Get user data from localStorage to get the user ID
       const userData = localStorage.getItem('user');
       if (!userData) {
         throw new Error('No user data found. Please log in again.');
@@ -269,34 +401,56 @@ const TeacherProfile = () => {
       }
       
       console.log('User ID from localStorage:', userId);
+      console.log('User role:', userRole);
       
-      // Get the teacher ID using the user ID
-      const teacherId = await getTeacherIdFromUserId(userId);
-      console.log('Resolved teacher ID:', teacherId);
+      let profileId, apiData, apiUrl;
       
-      // Extract years from experience string (e.g., "5 years" -> 5)
-      const experienceYears = parseInt(editedUser.experience?.replace(/\D/g, '') || '0');
+      if (userRole === 'teacher') {
+        // Get the teacher ID using the user ID
+        profileId = await getTeacherIdFromUserId(userId);
+        console.log('Resolved teacher ID:', profileId);
+        
+        // Extract years from experience string (e.g., "5 years" -> 5)
+        const experienceYears = parseInt(editedUser.experience?.replace(/\D/g, '') || '0');
+        
+        // Extract rate from hourly rate string (e.g., "LKR 2500" -> 2500)
+        const hourlyRateValue = parseFloat(editedUser.hourlyRate?.replace(/[^\d.]/g, '') || '0');
+        
+        // Prepare data for teacher API
+        apiData = {
+          bio: editedUser.bio || '',
+          years_experience: experienceYears,
+          education: editedUser.education || editedUser.qualifications || '',
+          hourly_rate: hourlyRateValue,
+          availability: editedUser.availability || '',
+          location: editedUser.location || '',
+          lat: editedUser.lat || 0,
+          lng: editedUser.lng || 0
+        };
+        
+        apiUrl = `http://145.223.21.62:5000/api/teachers/${profileId}`;
+      } else if (userRole === 'student') {
+        // Get the student ID using the user ID
+        profileId = await getStudentIdFromUserId(userId);
+        console.log('Resolved student ID:', profileId);
+        
+        // Prepare data for student API
+        apiData = {
+          bio: editedUser.bio || '',
+          education_level: editedUser.educationLevel || '',
+          location: editedUser.location || ''
+        };
+        
+        apiUrl = `http://145.223.21.62:5000/api/students/${profileId}`;
+      } else {
+        throw new Error('Invalid user role. Cannot save profile.');
+      }
       
-      // Extract rate from hourly rate string (e.g., "LKR 2500" -> 2500)
-      const hourlyRateValue = parseFloat(editedUser.hourlyRate?.replace(/[^\d.]/g, '') || '0');
+      console.log('Updating profile with data:', apiData);
+      console.log('Using API URL:', apiUrl);
       
-      // Prepare data for API (map component fields to API structure)
-      const apiData = {
-        bio: editedUser.bio || '',
-        years_experience: experienceYears,
-        education: editedUser.education || editedUser.qualifications || '',
-        hourly_rate: hourlyRateValue,
-        availability: editedUser.availability || '',
-        location: editedUser.location || '',
-        lat: editedUser.lat || 0,
-        lng: editedUser.lng || 0
-      };
-      
-      console.log('Updating teacher with data:', apiData);
-      console.log('Using teacher ID:', teacherId);
-      
-      // Make API call to update teacher profile using the correct teacher_id
-      const response = await fetch(`http://145.223.21.62:5000/api/teachers/${teacherId}`, {
+      // Make API call to update profile
+      const response = await fetch(apiUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -309,8 +463,8 @@ const TeacherProfile = () => {
         throw new Error(errorData.message || `Failed to update profile: ${response.status}`);
       }
       
-      const updatedTeacher = await response.json();
-      console.log('Teacher updated successfully:', updatedTeacher);
+      const updatedProfile = await response.json();
+      console.log('Profile updated successfully:', updatedProfile);
       
       // Update local state with new data
       setUser(editedUser);
@@ -353,19 +507,22 @@ const TeacherProfile = () => {
 
   const validateForm = () => {
     if (isEditing) {
-      // Validate experience contains a number
-      const experienceYears = parseInt(editedUser.experience?.replace(/\D/g, '') || '0');
-      if (isNaN(experienceYears) || experienceYears < 0) {
-        setError('Please enter a valid number of years of experience (e.g., "5 years")');
-        return false;
-      }
+      if (userRole === 'teacher') {
+        // Validate experience contains a number
+        const experienceYears = parseInt(editedUser.experience?.replace(/\D/g, '') || '0');
+        if (isNaN(experienceYears) || experienceYears < 0) {
+          setError('Please enter a valid number of years of experience (e.g., "5 years")');
+          return false;
+        }
 
-      // Validate hourly rate contains a valid number
-      const hourlyRateValue = parseFloat(editedUser.hourlyRate?.replace(/[^\d.]/g, '') || '0');
-      if (isNaN(hourlyRateValue) || hourlyRateValue < 0) {
-        setError('Please enter a valid hourly rate (e.g., "LKR 2500")');
-        return false;
+        // Validate hourly rate contains a valid number
+        const hourlyRateValue = parseFloat(editedUser.hourlyRate?.replace(/[^\d.]/g, '') || '0');
+        if (isNaN(hourlyRateValue) || hourlyRateValue < 0) {
+          setError('Please enter a valid hourly rate (e.g., "LKR 2500")');
+          return false;
+        }
       }
+      // For students, basic validation is sufficient
     }
     return true;
   };
@@ -390,6 +547,26 @@ const TeacherProfile = () => {
     return teacherRecord.teacher_id;
   };
 
+  // Helper function to get student ID from user ID
+  const getStudentIdFromUserId = async (userId) => {
+    const response = await fetch('http://145.223.21.62:5000/api/students');
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch students: ${response.status}`);
+    }
+    
+    const students = await response.json();
+    const studentRecord = students.find(student => 
+      student.user_id === parseInt(userId) || student.user_id === userId
+    );
+    
+    if (!studentRecord) {
+      throw new Error('Student record not found. You may need to complete your student registration first.');
+    }
+    
+    return studentRecord.student_id;
+  };
+
   if (loading) {
     return (
       <div className="profile-container">
@@ -398,7 +575,7 @@ const TeacherProfile = () => {
             <div className="spinner-border text-primary" role="status">
               <span className="visually-hidden">Loading...</span>
             </div>
-            <p className="mt-3">Loading teacher profile...</p>
+            <p className="mt-3">Loading {userRole || 'user'} profile...</p>
           </div>
         </div>
       </div>
@@ -416,7 +593,7 @@ const TeacherProfile = () => {
             </div>
             <button 
               className="btn btn-primary"
-              onClick={() => window.location.href = '/login/teacher'}
+              onClick={() => window.location.href = `/login/${userRole || 'teacher'}`}
             >
               <i className="bi bi-box-arrow-in-right me-2"></i>
               Go to Login
@@ -468,8 +645,9 @@ const TeacherProfile = () => {
             <button 
               className="btn btn-primary"
               onClick={() => {
-                setUser(mockUser);
-                setEditedUser(mockUser);
+                const fallback = userRole === 'student' ? mockStudent : mockTeacher;
+                setUser(fallback);
+                setEditedUser(fallback);
               }}
             >
               Load Sample Profile
@@ -488,7 +666,10 @@ const TeacherProfile = () => {
           <div className="alert alert-info" role="alert">
             <strong>Debug Info:</strong> 
             <span className="ms-2">
-              URL Teacher ID: {teacherId || 'None (Own Profile)'}
+              URL Profile ID: {profileId || 'None (Own Profile)'}
+            </span>
+            <span className="ms-3">
+              User Role: {userRole || 'Unknown'}
             </span>
             <span className="ms-3">
               Is Own Profile: {isOwnProfile ? 'Yes' : 'No'}
@@ -508,13 +689,12 @@ const TeacherProfile = () => {
               })()}
             </span>
             <span className="ms-3">
-              Teacher ID: {user?.id || 'Not Resolved'}
+              Profile ID: {user?.id || 'Not Resolved'}
             </span>
             <span className="ms-3">Profile: {user ? 'Loaded' : 'Not Loaded'}</span>
             <button 
               className="btn btn-sm btn-outline-primary ms-3"
               onClick={() => {
-                // Clear localStorage and reload
                 localStorage.clear();
                 window.location.reload();
               }}
@@ -524,18 +704,8 @@ const TeacherProfile = () => {
             <button 
               className="btn btn-sm btn-outline-secondary ms-2"
               onClick={() => {
-                console.log('Current state:', { user, error, loading, isOwnProfile, teacherId });
+                console.log('Current state:', { user, error, loading, isOwnProfile, profileId, userRole });
                 console.log('localStorage user:', localStorage.getItem('user'));
-                try {
-                  const userData = localStorage.getItem('user');
-                  if (userData) {
-                    const parsed = JSON.parse(userData);
-                    console.log('Parsed user data:', parsed);
-                    console.log('User ID:', parsed.user_id || parsed.id);
-                  }
-                } catch (e) {
-                  console.error('Error parsing user data:', e);
-                }
               }}
             >
               Log State
@@ -543,6 +713,7 @@ const TeacherProfile = () => {
           </div>
         </div>
       </div>
+
       {/* Profile Header */}
       <div className="profile-header">
         <div className="container-fluid">
@@ -553,36 +724,67 @@ const TeacherProfile = () => {
                   src={currentUser?.profilePicture} 
                   alt={currentUser?.name}
                   onError={(e) => {
-                    e.target.src = 'https://randomuser.me/api/portraits/women/1.jpg';
+                    const defaultImg = userRole === 'student' 
+                      ? 'https://randomuser.me/api/portraits/men/1.jpg'
+                      : 'https://randomuser.me/api/portraits/women/1.jpg';
+                    e.target.src = defaultImg;
                   }}
                 />
-                <div className="rating-badge">
-                  <i className="bi bi-star-fill"></i>
-                  <span>{currentUser?.rating || '4.5'}</span>
-                </div>
+                {userRole === 'teacher' && (
+                  <div className="rating-badge">
+                    <i className="bi bi-star-fill"></i>
+                    <span>{currentUser?.rating || '4.5'}</span>
+                  </div>
+                )}
+                {userRole === 'student' && (
+                  <div className="student-badge">
+                    <i className="bi bi-mortarboard-fill"></i>
+                  </div>
+                )}
               </div>
             </div>
             <div className="col">
               <h2 className="mb-1">{currentUser?.name}</h2>
-              <p className="text-muted mb-2">{currentUser?.subjects}</p>
+              <p className="text-muted mb-2">
+                {userRole === 'teacher' ? currentUser?.subjects : `Student - ${currentUser?.subjects}`}
+              </p>
               <div className="profile-stats">
-                <span className="stat-item">
-                  <i className="bi bi-people-fill"></i>
-                  {currentUser?.totalStudents || 0} Students
-                </span>
-                <span className="stat-item">
-                  <i className="bi bi-star-fill"></i>
-                  {currentUser?.rating || 'N/A'} ({currentUser?.reviews || 0} reviews)
-                </span>
-                <span className="stat-item">
-                  <i className="bi bi-calendar-check"></i>
-                  Since {currentUser?.dateJoined ? new Date(currentUser.dateJoined).getFullYear() : 'N/A'}
-                </span>
-                {currentUser?.is_subscribed && (
-                  <span className="stat-item subscription-badge">
-                    <i className="bi bi-check-circle-fill"></i>
-                    Subscribed
-                  </span>
+                {userRole === 'teacher' ? (
+                  <>
+                    <span className="stat-item">
+                      <i className="bi bi-people-fill"></i>
+                      {currentUser?.totalStudents || 0} Students
+                    </span>
+                    <span className="stat-item">
+                      <i className="bi bi-star-fill"></i>
+                      {currentUser?.rating || 'N/A'} ({currentUser?.reviews || 0} reviews)
+                    </span>
+                    <span className="stat-item">
+                      <i className="bi bi-calendar-check"></i>
+                      Since {currentUser?.dateJoined ? new Date(currentUser.dateJoined).getFullYear() : 'N/A'}
+                    </span>
+                    {currentUser?.is_subscribed && (
+                      <span className="stat-item subscription-badge">
+                        <i className="bi bi-check-circle-fill"></i>
+                        Subscribed
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <span className="stat-item">
+                      <i className="bi bi-mortarboard"></i>
+                      {currentUser?.educationLevel || 'Not specified'}
+                    </span>
+                    <span className="stat-item">
+                      <i className="bi bi-calendar-check"></i>
+                      Since {currentUser?.dateJoined ? new Date(currentUser.dateJoined).getFullYear() : 'N/A'}
+                    </span>
+                    <span className="stat-item">
+                      <i className="bi bi-geo-alt"></i>
+                      {currentUser?.location || 'Location not set'}
+                    </span>
+                  </>
                 )}
               </div>
             </div>
@@ -638,7 +840,7 @@ const TeacherProfile = () => {
                 <div className="btn-group">
                   <button className="btn btn-primary">
                     <i className="bi bi-chat-dots me-2"></i>
-                    Message Teacher
+                    Message {userRole === 'teacher' ? 'Teacher' : 'Student'}
                   </button>
                   <button className="btn btn-outline-primary">
                     <i className="bi bi-heart me-2"></i>
@@ -664,15 +866,17 @@ const TeacherProfile = () => {
                 Profile
               </button>
             </li>
-            <li className="nav-item">
-              <button 
-                className={`nav-link ${activeTab === 'education' ? 'active' : ''}`}
-                onClick={() => setActiveTab('education')}
-              >
-                <i className="bi bi-mortarboard me-2"></i>
-                Education
-              </button>
-            </li>
+            {userRole === 'teacher' && (
+              <li className="nav-item">
+                <button 
+                  className={`nav-link ${activeTab === 'education' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('education')}
+                >
+                  <i className="bi bi-mortarboard me-2"></i>
+                  Education
+                </button>
+              </li>
+            )}
             <li className="nav-item">
               <button 
                 className={`nav-link ${activeTab === 'achievements' ? 'active' : ''}`}
@@ -714,6 +918,7 @@ const TeacherProfile = () => {
               ></button>
             </div>
           )}
+
           {activeTab === 'profile' && (
             <div>
               <h4 className="mb-4">Profile Information</h4>
@@ -771,94 +976,124 @@ const TeacherProfile = () => {
                       <input type="text" className="form-control" value={currentUser?.location || ''} readOnly />
                     )}
                   </div>
-                  <div className="mb-3">
-                    <label className="form-label">Subjects</label>
-                    {isEditing && isOwnProfile ? (
-                      <input 
-                        type="text" 
-                        className="form-control" 
-                        value={currentUser?.subjects || ''} 
-                        onChange={(e) => handleInputChange('subjects', e.target.value)}
-                        placeholder="e.g., Mathematics, Physics, Chemistry"
-                      />
-                    ) : (
-                      <input type="text" className="form-control" value={currentUser?.subjects || ''} readOnly />
-                    )}
-                  </div>
+                  {userRole === 'student' && (
+                    <div className="mb-3">
+                      <label className="form-label">Education Level</label>
+                      {isEditing && isOwnProfile ? (
+                        <select 
+                          className="form-control" 
+                          value={currentUser?.educationLevel || ''} 
+                          onChange={(e) => handleInputChange('educationLevel', e.target.value)}
+                        >
+                          <option value="">Select Education Level</option>
+                          <option value="High School">High School</option>
+                          <option value="College">College</option>
+                          <option value="University">University</option>
+                          <option value="Graduate">Graduate</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      ) : (
+                        <input type="text" className="form-control" value={currentUser?.educationLevel || ''} readOnly />
+                      )}
+                    </div>
+                  )}
+                  {userRole === 'teacher' && (
+                    <div className="mb-3">
+                      <label className="form-label">Subjects</label>
+                      {isEditing && isOwnProfile ? (
+                        <input 
+                          type="text" 
+                          className="form-control" 
+                          value={currentUser?.subjects || ''} 
+                          onChange={(e) => handleInputChange('subjects', e.target.value)}
+                          placeholder="e.g., Mathematics, Physics, Chemistry"
+                        />
+                      ) : (
+                        <input type="text" className="form-control" value={currentUser?.subjects || ''} readOnly />
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="col-md-6">
-                  <div className="mb-3">
-                    <label className="form-label">Experience</label>
-                    {isEditing && isOwnProfile ? (
-                      <>
-                        <input 
-                          type="text" 
-                          className="form-control" 
-                          value={currentUser?.experience || ''} 
-                          onChange={(e) => handleInputChange('experience', e.target.value)}
-                          placeholder="e.g., 5 years"
-                        />
-                        <div className="form-text">Enter number of years (e.g., "5 years")</div>
-                      </>
-                    ) : (
-                      <input type="text" className="form-control" value={currentUser?.experience || ''} readOnly />
-                    )}
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Hourly Rate</label>
-                    {isEditing && isOwnProfile ? (
-                      <>
-                        <input 
-                          type="text" 
-                          className="form-control" 
-                          value={currentUser?.hourlyRate || ''} 
-                          onChange={(e) => handleInputChange('hourlyRate', e.target.value)}
-                          placeholder="e.g., LKR 2500"
-                        />
-                        <div className="form-text">Enter rate with currency (e.g., "LKR 2500")</div>
-                      </>
-                    ) : (
-                      <input type="text" className="form-control" value={currentUser?.hourlyRate || ''} readOnly />
-                    )}
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Availability</label>
-                    {isEditing && isOwnProfile ? (
-                      <input 
-                        type="text" 
-                        className="form-control" 
-                        value={currentUser?.availability || ''} 
-                        onChange={(e) => handleInputChange('availability', e.target.value)}
-                      />
-                    ) : (
-                      <input type="text" className="form-control" value={currentUser?.availability || ''} readOnly />
-                    )}
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Preferred Medium</label>
-                    {isEditing && isOwnProfile ? (
-                      <input 
-                        type="text" 
-                        className="form-control" 
-                        value={currentUser?.preferredMedium || ''} 
-                        onChange={(e) => handleInputChange('preferredMedium', e.target.value)}
-                      />
-                    ) : (
-                      <input type="text" className="form-control" value={currentUser?.preferredMedium || ''} readOnly />
-                    )}
-                  </div>
+                  {userRole === 'teacher' && (
+                    <>
+                      <div className="mb-3">
+                        <label className="form-label">Experience</label>
+                        {isEditing && isOwnProfile ? (
+                          <>
+                            <input 
+                              type="text" 
+                              className="form-control" 
+                              value={currentUser?.experience || ''} 
+                              onChange={(e) => handleInputChange('experience', e.target.value)}
+                              placeholder="e.g., 5 years"
+                            />
+                            <div className="form-text">Enter number of years (e.g., "5 years")</div>
+                          </>
+                        ) : (
+                          <input type="text" className="form-control" value={currentUser?.experience || ''} readOnly />
+                        )}
+                      </div>
+                      <div className="mb-3">
+                        <label className="form-label">Hourly Rate</label>
+                        {isEditing && isOwnProfile ? (
+                          <>
+                            <input 
+                              type="text" 
+                              className="form-control" 
+                              value={currentUser?.hourlyRate || ''} 
+                              onChange={(e) => handleInputChange('hourlyRate', e.target.value)}
+                              placeholder="e.g., LKR 2500"
+                            />
+                            <div className="form-text">Enter rate with currency (e.g., "LKR 2500")</div>
+                          </>
+                        ) : (
+                          <input type="text" className="form-control" value={currentUser?.hourlyRate || ''} readOnly />
+                        )}
+                      </div>
+                      <div className="mb-3">
+                        <label className="form-label">Availability</label>
+                        {isEditing && isOwnProfile ? (
+                          <input 
+                            type="text" 
+                            className="form-control" 
+                            value={currentUser?.availability || ''} 
+                            onChange={(e) => handleInputChange('availability', e.target.value)}
+                          />
+                        ) : (
+                          <input type="text" className="form-control" value={currentUser?.availability || ''} readOnly />
+                        )}
+                      </div>
+                      <div className="mb-3">
+                        <label className="form-label">Preferred Medium</label>
+                        {isEditing && isOwnProfile ? (
+                          <input 
+                            type="text" 
+                            className="form-control" 
+                            value={currentUser?.preferredMedium || ''} 
+                            onChange={(e) => handleInputChange('preferredMedium', e.target.value)}
+                          />
+                        ) : (
+                          <input type="text" className="form-control" value={currentUser?.preferredMedium || ''} readOnly />
+                        )}
+                      </div>
+                    </>
+                  )}
                   <div className="mb-3">
                     <label className="form-label">Bio</label>
                     {isEditing && isOwnProfile ? (
                       <textarea 
                         className="form-control" 
-                        rows="3" 
+                        rows="4" 
                         value={currentUser?.bio || ''} 
                         onChange={(e) => handleInputChange('bio', e.target.value)}
-                        placeholder="Tell us about yourself and your teaching approach..."
+                        placeholder={userRole === 'teacher' 
+                          ? "Tell us about yourself and your teaching approach..." 
+                          : "Tell us about yourself and your learning goals..."
+                        }
                       />
                     ) : (
-                      <textarea className="form-control" rows="3" value={currentUser?.bio || ''} readOnly />
+                      <textarea className="form-control" rows="4" value={currentUser?.bio || ''} readOnly />
                     )}
                   </div>
                 </div>
@@ -866,7 +1101,7 @@ const TeacherProfile = () => {
             </div>
           )}
 
-          {activeTab === 'education' && (
+          {activeTab === 'education' && userRole === 'teacher' && (
             <div>
               <h4 className="mb-4">Education & Qualifications</h4>
               <div className="row">
@@ -917,7 +1152,12 @@ const TeacherProfile = () => {
                           </div>
                           <div className="achievement-content">
                             <h6>{achievement}</h6>
-                            <p className="text-muted mb-0">Professional recognition in teaching excellence</p>
+                            <p className="text-muted mb-0">
+                              {userRole === 'teacher' 
+                                ? 'Professional recognition in teaching excellence' 
+                                : 'Academic achievement and recognition'
+                              }
+                            </p>
                           </div>
                         </div>
                       ))}
@@ -984,6 +1224,24 @@ const TeacherProfile = () => {
         .rating-badge i {
           color: #fbbf24;
           font-size: 0.75rem;
+        }
+
+        .student-badge {
+          position: absolute;
+          bottom: -5px;
+          right: -5px;
+          background: #10b981;
+          color: white;
+          padding: 0.5rem;
+          border-radius: 50%;
+          font-size: 0.75rem;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 30px;
+          height: 30px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .profile-stats {
@@ -1168,4 +1426,4 @@ const TeacherProfile = () => {
   );
 };
 
-export default TeacherProfile;
+export default UniversalProfile;
