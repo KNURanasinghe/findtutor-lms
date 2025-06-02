@@ -277,8 +277,6 @@ const UniversalProfile = () => {
             id: currentProfile.teacher_id,
             user_id: currentProfile.user_id,
             name: currentProfile.name,
-            email: '', // Email not provided in teachers API
-            subjects: 'General', // Default since not provided by API
             email: currentProfile.email || '', 
             subjects: currentProfile.subjects || 'General', 
             experience: `${currentProfile.years_experience || 0} years`,
@@ -728,7 +726,7 @@ const UniversalProfile = () => {
   return (
     <div className="profile-container">
       {/* Debug Panel - Remove in production */}
-      <div className="debug-panel">
+      {/* <div className="debug-panel">
         <div className="container-fluid">
           <div className="alert alert-info" role="alert">
             <strong>Debug Info:</strong> 
@@ -779,7 +777,7 @@ const UniversalProfile = () => {
             </button>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Profile Header */}
       <div className="profile-header">

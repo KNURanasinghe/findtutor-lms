@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
+import UniversalProfile from './profilePage';
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
@@ -32,7 +33,7 @@ const StudentDashboard = () => {
     
     try {
       const response = await fetch(
-        `http://145.223.21.62:5000/api/requests?student_id=${user.id}`,
+        `http://145.223.21.62:5000/api/students/student_id=${user.id}/requests`,
         {
           method: 'GET',
           headers: {
@@ -412,38 +413,39 @@ const StudentDashboard = () => {
           )}
 
           {activeTab === 'profile' && (
-            <div className="card">
-              <div className="card-body">
-                <h5 className="card-title">Profile Information</h5>
-                <div className="row">
-                  <div className="col-md-6">
-                    <div className="mb-3">
-                      <label className="form-label">Name</label>
-                      <input type="text" className="form-control" value={profileData.name} readOnly />
-                    </div>
-                    <div className="mb-3">
-                      <label className="form-label">Email</label>
-                      <input type="email" className="form-control" value={profileData.email} readOnly />
-                    </div>
-                    <div className="mb-3">
-                      <label className="form-label">Grade</label>
-                      <input type="text" className="form-control" value={profileData.grade} readOnly />
-                    </div>
-                  </div>
-                  <div className="col-md-6">
-                    <div className="mb-3">
-                      <label className="form-label">Subjects</label>
-                      <input type="text" className="form-control" value={profileData.subjects.join(', ')} readOnly />
-                    </div>
-                    <div className="mb-3">
-                      <label className="form-label">Join Date</label>
-                      <input type="text" className="form-control" value={profileData.joinDate} readOnly />
-                    </div>
-                  </div>
-                </div>
-                <button className="btn btn-primary">Edit Profile</button>
-              </div>
-            </div>
+            // <div className="card">
+            //   <div className="card-body">
+            //     <h5 className="card-title">Profile Information</h5>
+            //     <div className="row">
+            //       <div className="col-md-6">
+            //         <div className="mb-3">
+            //           <label className="form-label">Name</label>
+            //           <input type="text" className="form-control" value={profileData.name} readOnly />
+            //         </div>
+            //         <div className="mb-3">
+            //           <label className="form-label">Email</label>
+            //           <input type="email" className="form-control" value={profileData.email} readOnly />
+            //         </div>
+            //         <div className="mb-3">
+            //           <label className="form-label">Grade</label>
+            //           <input type="text" className="form-control" value={profileData.grade} readOnly />
+            //         </div>
+            //       </div>
+            //       <div className="col-md-6">
+            //         <div className="mb-3">
+            //           <label className="form-label">Subjects</label>
+            //           <input type="text" className="form-control" value={profileData.subjects.join(', ')} readOnly />
+            //         </div>
+            //         <div className="mb-3">
+            //           <label className="form-label">Join Date</label>
+            //           <input type="text" className="form-control" value={profileData.joinDate} readOnly />
+            //         </div>
+            //       </div>
+            //     </div>
+            //     <button className="btn btn-primary">Edit Profile</button>
+            //   </div>
+            // </div>
+            <UniversalProfile/>
           )}
         </div>
       </main>
