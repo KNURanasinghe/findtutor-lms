@@ -277,8 +277,10 @@ const UniversalProfile = () => {
             id: currentProfile.teacher_id,
             user_id: currentProfile.user_id,
             name: currentProfile.name,
-            email: currentProfile.email || '', // Get email from API response
-            subjects: currentProfile.subjects || 'General', // Use subjects from API or default
+            email: '', // Email not provided in teachers API
+            subjects: 'General', // Default since not provided by API
+            email: currentProfile.email || '', 
+            subjects: currentProfile.subjects || 'General', 
             experience: `${currentProfile.years_experience || 0} years`,
             qualifications: currentProfile.education || '',
             hourlyRate: `LKR ${currentProfile.hourly_rate || 0}`,
