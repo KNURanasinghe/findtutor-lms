@@ -8,6 +8,9 @@ const StudentDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('requests');
+  const [tutorRequests, setTutorRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     // Check if user is logged in and is a student
@@ -15,6 +18,44 @@ const StudentDashboard = () => {
       navigate('/login/student');
     }
   }, [user, navigate]);
+
+  // Fetch tutor requests when component mounts or when activeTab is 'requests'
+  useEffect(() => {
+    if (activeTab === 'requests' && user?.id) {
+      fetchTutorRequests();
+    }
+  }, [activeTab, user?.id]);
+
+  const fetchTutorRequests = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(
+        `http://145.223.21.62:5000/api/requests?student_id=${user.id}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            // Add authorization header if needed
+            // 'Authorization': `Bearer ${user.token}`
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setTutorRequests(data);
+    } catch (err) {
+      console.error('Error fetching tutor requests:', err);
+      setError('Failed to load tutor requests. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -25,27 +66,31 @@ const StudentDashboard = () => {
     }
   };
 
-  // Mock data for tutor requests
-  const tutorRequests = [
-    {
-      id: 1,
-      teacherName: 'Dr. Sarah Johnson',
-      subject: 'Mathematics',
-      level: 'Advanced',
-      requestDate: '2024-03-15',
-      status: 'pending'
-    },
-    {
-      id: 2,
-      teacherName: 'Prof. Michael Brown',
-      subject: 'Physics',
-      level: 'Intermediate',
-      requestDate: '2024-03-14',
-      status: 'accepted'
-    }
-  ];
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
 
-  // Mock data for enrolled classes
+  const getStatusBadgeClass = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'pending':
+        return 'bg-warning';
+      case 'accepted':
+        return 'bg-success';
+      case 'declined':
+        return 'bg-danger';
+      case 'completed':
+        return 'bg-info';
+      default:
+        return 'bg-secondary';
+    }
+  };
+
+  // Mock data for enrolled classes (keeping existing mock data for other sections)
   const enrolledClasses = [
     {
       id: 1,
@@ -168,40 +213,112 @@ const StudentDashboard = () => {
           {activeTab === 'requests' && (
             <div className="card">
               <div className="card-body">
-                <h5 className="card-title">Tutor Requests</h5>
-                <div className="table-responsive">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Teacher</th>
-                        <th>Subject</th>
-                        <th>Level</th>
-                        <th>Date</th>
-                        <th>Status</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tutorRequests.map(request => (
-                        <tr key={request.id}>
-                          <td>{request.teacherName}</td>
-                          <td>{request.subject}</td>
-                          <td>{request.level}</td>
-                          <td>{request.requestDate}</td>
-                          <td>
-                            <span className={`badge bg-${request.status === 'pending' ? 'warning' : 'success'}`}>
-                              {request.status}
-                            </span>
-                          </td>
-                          <td>
-                            <button className="btn btn-sm btn-primary me-2">View Details</button>
-                            <button className="btn btn-sm btn-danger">Cancel</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h5 className="card-title mb-0">Tutor Requests</h5>
+                  <button 
+                    className="btn btn-outline-primary btn-sm"
+                    onClick={fetchTutorRequests}
+                    disabled={loading}
+                  >
+                    <i className="bi bi-arrow-clockwise me-1"></i>
+                    {loading ? 'Refreshing...' : 'Refresh'}
+                  </button>
                 </div>
+
+                {error && (
+                  <div className="alert alert-danger" role="alert">
+                    <i className="bi bi-exclamation-triangle me-2"></i>
+                    {error}
+                  </div>
+                )}
+
+                {loading ? (
+                  <div className="text-center py-4">
+                    <div className="spinner-border" role="status">
+                      <span className="visually-hidden">Loading...</span>
+                    </div>
+                    <p className="mt-2">Loading tutor requests...</p>
+                  </div>
+                ) : (
+                  <>
+                    {tutorRequests.length === 0 ? (
+                      <div className="text-center py-4">
+                        <i className="bi bi-inbox display-4 text-muted"></i>
+                        <p className="mt-2 text-muted">No tutor requests found.</p>
+                      </div>
+                    ) : (
+                      <div className="table-responsive">
+                        <table className="table">
+                          <thead>
+                            <tr>
+                              <th>Teacher</th>
+                              <th>Subject</th>
+                              <th>Class</th>
+                              <th>Message</th>
+                              <th>Budget</th>
+                              <th>Location</th>
+                              <th>Date</th>
+                              <th>Status</th>
+                              <th>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {tutorRequests.map(request => (
+                              <tr key={request.id}>
+                                <td>
+                                  <div className="d-flex align-items-center">
+                                    <img
+                                      src={request.teacher_profile_picture || 'https://via.placeholder.com/32'}
+                                      alt="Teacher"
+                                      className="rounded-circle me-2"
+                                      style={{ width: '32px', height: '32px', objectFit: 'cover' }}
+                                    />
+                                    {request.teacher_name}
+                                  </div>
+                                </td>
+                                <td>{request.subject_name}</td>
+                                <td>{request.class_title || 'N/A'}</td>
+                                <td>
+                                  <span 
+                                    className="text-truncate d-inline-block" 
+                                    style={{ maxWidth: '150px' }}
+                                    title={request.message}
+                                  >
+                                    {request.message}
+                                  </span>
+                                </td>
+                                <td>${request.budget}</td>
+                                <td>{request.location}</td>
+                                <td>{formatDate(request.created_at)}</td>
+                                <td>
+                                  <span className={`badge ${getStatusBadgeClass(request.status)}`}>
+                                    {request.status}
+                                  </span>
+                                </td>
+                                <td>
+                                  <button className="btn btn-sm btn-primary me-1">
+                                    View Details
+                                  </button>
+                                  {request.status === 'pending' && (
+                                    <>
+                                      <button className="btn btn-sm btn-success me-1">
+                                        Accept
+                                      </button>
+                                      <button className="btn btn-sm btn-danger">
+                                        Decline
+                                      </button>
+                                    </>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                )}
+                
                 <button className="btn btn-primary mt-3">Request New Tutor</button>
               </div>
             </div>
@@ -418,6 +535,12 @@ const StudentDashboard = () => {
           height: 20px;
         }
 
+        .text-truncate {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
         @media (max-width: 768px) {
           .sidebar {
             width: 100%;
@@ -438,4 +561,4 @@ const StudentDashboard = () => {
   );
 };
 
-export default StudentDashboard; 
+export default StudentDashboard;
