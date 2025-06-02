@@ -234,12 +234,12 @@ const UniversalProfile = () => {
             id: currentProfile.teacher_id,
             user_id: currentProfile.user_id,
             name: currentProfile.name,
-            email: currentProfile.email || '', // Get email from API response
-            subjects: currentProfile.subjects || 'General', // Use subjects from API or default
+            email: '', // Email not provided in teachers API
+            subjects: 'General', // Default since not provided by API
             experience: `${currentProfile.years_experience || 0} years`,
             qualifications: currentProfile.education || '',
             hourlyRate: `LKR ${currentProfile.hourly_rate || 0}`,
-            phone: currentProfile.phone || '', // Get phone from API response
+            phone: '', // Not provided in API response
             location: currentProfile.location || '',
             bio: currentProfile.bio || 'Experienced teacher ready to help you learn.',
             profilePicture: currentProfile.profile_picture || 'https://randomuser.me/api/portraits/women/1.jpg',
@@ -261,14 +261,14 @@ const UniversalProfile = () => {
             id: currentProfile.student_id,
             user_id: currentProfile.user_id,
             name: currentProfile.name,
-            email: currentProfile.email || '', // Get email from API response
-            phone: currentProfile.phone || '', // Get phone from API response
+            email: '', // Email not provided in students API
+            phone: '', // Not provided in API response
             location: currentProfile.location || '',
             bio: currentProfile.bio || 'Student eager to learn and grow.',
             profilePicture: currentProfile.profile_picture || 'https://randomuser.me/api/portraits/men/1.jpg',
             dateJoined: currentProfile.date_joined || new Date().toISOString().split('T')[0],
             educationLevel: currentProfile.education_level || '',
-            subjects: currentProfile.subjects || 'Various', // Get subjects from API or default
+            subjects: 'Various', // Default for students
             achievements: currentProfile.achievements || [],
             role: 'student'
           };
@@ -425,10 +425,7 @@ const UniversalProfile = () => {
           availability: editedUser.availability || '',
           location: editedUser.location || '',
           lat: editedUser.lat || 0,
-          lng: editedUser.lng || 0,
-          email: editedUser.email || '',
-          phone: editedUser.phone || '',
-          subjects: editedUser.subjects || ''
+          lng: editedUser.lng || 0
         };
         
         apiUrl = `http://145.223.21.62:5000/api/teachers/${profileId}`;
@@ -441,9 +438,7 @@ const UniversalProfile = () => {
         apiData = {
           bio: editedUser.bio || '',
           education_level: editedUser.educationLevel || '',
-          location: editedUser.location || '',
-          email: editedUser.email || '',
-          phone: editedUser.phone || ''
+          location: editedUser.location || ''
         };
         
         apiUrl = `http://145.223.21.62:5000/api/students/${profileId}`;
@@ -955,7 +950,7 @@ const UniversalProfile = () => {
                       <input type="email" className="form-control" value={currentUser?.email || ''} readOnly />
                     )}
                   </div>
-                  {/* <div className="mb-3">
+                  <div className="mb-3">
                     <label className="form-label">Phone</label>
                     {isEditing && isOwnProfile ? (
                       <input 
@@ -967,7 +962,7 @@ const UniversalProfile = () => {
                     ) : (
                       <input type="tel" className="form-control" value={currentUser?.phone || ''} readOnly />
                     )}
-                  </div> */}
+                  </div>
                   <div className="mb-3">
                     <label className="form-label">Location</label>
                     {isEditing && isOwnProfile ? (
