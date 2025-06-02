@@ -9,6 +9,8 @@ const TeacherProfile = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [editedUser, setEditedUser] = useState({});
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   // Mock user data - fallback when API fails or no teacher ID
   const mockUser = {
@@ -32,7 +34,6 @@ const TeacherProfile = () => {
     education: 'University of Cambridge',
     achievements: ['Best Teacher Award 2023', 'Top Rated Tutor', '95% Student Success Rate']
   };
-  const [updateLoading, setUpdateLoading] = useState(false);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -240,46 +241,88 @@ const TeacherProfile = () => {
 
   const handleSave = async () => {
     try {
+      // Validate form before saving
+      if (!validateForm()) {
+        return;
+      }
+
       setUpdateLoading(true);
       setError(null);
       
-      const teacherId = localStorage.getItem('teacherId') || localStorage.getItem('teacher_id');
-      
-      if (!teacherId) {
-        throw new Error('No teacher ID found. Cannot save profile.');
+      // Get user data from localStorage to get the user ID
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        throw new Error('No user data found. Please log in again.');
       }
       
-      // Prepare data for API (map back to API structure)
+      const parsedUser = JSON.parse(userData);
+      const userId = parsedUser.user_id || parsedUser.id;
+      
+      if (!userId) {
+        throw new Error('No user ID found. Cannot save profile.');
+      }
+      
+      console.log('User ID from localStorage:', userId);
+      
+      // Get the teacher ID using the user ID
+      const teacherId = await getTeacherIdFromUserId(userId);
+      console.log('Resolved teacher ID:', teacherId);
+      
+      // Extract years from experience string (e.g., "5 years" -> 5)
+      const experienceYears = parseInt(editedUser.experience?.replace(/\D/g, '') || '0');
+      
+      // Extract rate from hourly rate string (e.g., "LKR 2500" -> 2500)
+      const hourlyRateValue = parseFloat(editedUser.hourlyRate?.replace(/[^\d.]/g, '') || '0');
+      
+      // Prepare data for API (map component fields to API structure)
       const apiData = {
-        name: editedUser.name,
-        bio: editedUser.bio,
-        education: editedUser.education,
-        hourly_rate: parseFloat(editedUser.hourlyRate.replace('LKR ', '')),
-        location: editedUser.location,
-        // Add other fields that your API supports for updates
+        bio: editedUser.bio || '',
+        years_experience: experienceYears,
+        education: editedUser.education || editedUser.qualifications || '',
+        hourly_rate: hourlyRateValue,
+        availability: editedUser.availability || '',
+        location: editedUser.location || '',
+        lat: editedUser.lat || 0,
+        lng: editedUser.lng || 0
       };
       
-      // TODO: Replace with actual API endpoint when available
-      // const response = await fetch(`http://145.223.21.62:5000/api/teachers/${teacherId}`, {
-      //   method: 'PUT',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify(apiData)
-      // });
+      console.log('Updating teacher with data:', apiData);
+      console.log('Using teacher ID:', teacherId);
       
-      // if (!response.ok) {
-      //   throw new Error('Failed to update profile');
-      // }
+      // Make API call to update teacher profile using the correct teacher_id
+      const response = await fetch(`http://145.223.21.62:5000/api/teachers/${teacherId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(apiData)
+      });
       
-      // For now, just update local state (remove this when API is available)
-      console.log('Profile update data:', apiData);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to update profile: ${response.status}`);
+      }
       
+      const updatedTeacher = await response.json();
+      console.log('Teacher updated successfully:', updatedTeacher);
+      
+      // Update local state with new data
       setUser(editedUser);
       setIsEditing(false);
+      
+      // Show success message
+      setSuccessMessage('Profile updated successfully!');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 3000);
+      
+      console.log('Profile updated successfully!');
+      
     } catch (err) {
       console.error('Error saving profile:', err);
-      setError(err.message || 'Failed to save profile');
+      setError(err.message || 'Failed to save profile. Please try again.');
     } finally {
       setUpdateLoading(false);
     }
@@ -295,6 +338,50 @@ const TeacherProfile = () => {
       ...prev,
       [field]: value
     }));
+    
+    // Clear any previous errors
+    if (error && !error.includes('Access denied')) {
+      setError('');
+    }
+  };
+
+  const validateForm = () => {
+    if (isEditing) {
+      // Validate experience contains a number
+      const experienceYears = parseInt(editedUser.experience?.replace(/\D/g, '') || '0');
+      if (isNaN(experienceYears) || experienceYears < 0) {
+        setError('Please enter a valid number of years of experience (e.g., "5 years")');
+        return false;
+      }
+
+      // Validate hourly rate contains a valid number
+      const hourlyRateValue = parseFloat(editedUser.hourlyRate?.replace(/[^\d.]/g, '') || '0');
+      if (isNaN(hourlyRateValue) || hourlyRateValue < 0) {
+        setError('Please enter a valid hourly rate (e.g., "LKR 2500")');
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // Helper function to get teacher ID from user ID
+  const getTeacherIdFromUserId = async (userId) => {
+    const response = await fetch('http://145.223.21.62:5000/api/teachers');
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch teachers: ${response.status}`);
+    }
+    
+    const teachers = await response.json();
+    const teacherRecord = teachers.find(teacher => 
+      teacher.user_id === parseInt(userId) || teacher.user_id === userId
+    );
+    
+    if (!teacherRecord) {
+      throw new Error('Teacher record not found. You may need to complete your teacher registration first.');
+    }
+    
+    return teacherRecord.teacher_id;
   };
 
   if (loading) {
@@ -398,18 +485,21 @@ const TeacherProfile = () => {
               User Data: {localStorage.getItem('user') ? 'Found' : 'Not Found'}
             </span>
             <span className="ms-3">
-              Parsed User: {(() => {
+              User ID: {(() => {
                 try {
                   const userData = localStorage.getItem('user');
                   if (userData) {
                     const parsed = JSON.parse(userData);
-                    return `${parsed.name || 'Unknown'} (${parsed.role || 'No Role'})`;
+                    return parsed.user_id || parsed.id || 'Not Found';
                   }
                   return 'None';
                 } catch (e) {
                   return 'Invalid JSON';
                 }
               })()}
+            </span>
+            <span className="ms-3">
+              Teacher ID: {user?.id || 'Not Resolved'}
             </span>
             <span className="ms-3">Profile: {user ? 'Loaded' : 'Not Loaded'}</span>
             <button 
@@ -430,7 +520,9 @@ const TeacherProfile = () => {
                 try {
                   const userData = localStorage.getItem('user');
                   if (userData) {
-                    console.log('Parsed user data:', JSON.parse(userData));
+                    const parsed = JSON.parse(userData);
+                    console.log('Parsed user data:', parsed);
+                    console.log('User ID:', parsed.user_id || parsed.id);
                   }
                 } catch (e) {
                   console.error('Error parsing user data:', e);
@@ -572,6 +664,31 @@ const TeacherProfile = () => {
       {/* Tab Content */}
       <div className="profile-content">
         <div className="container-fluid">
+          {/* Success Message */}
+          {successMessage && (
+            <div className="alert alert-success alert-dismissible fade show" role="alert">
+              <i className="bi bi-check-circle-fill me-2"></i>
+              {successMessage}
+              <button 
+                type="button" 
+                className="btn-close" 
+                onClick={() => setSuccessMessage('')}
+              ></button>
+            </div>
+          )}
+          
+          {/* Error Message */}
+          {error && !error.includes('Access denied') && (
+            <div className="alert alert-danger alert-dismissible fade show" role="alert">
+              <i className="bi bi-exclamation-triangle-fill me-2"></i>
+              {error}
+              <button 
+                type="button" 
+                className="btn-close" 
+                onClick={() => setError('')}
+              ></button>
+            </div>
+          )}
           {activeTab === 'profile' && (
             <div>
               <h4 className="mb-4">Profile Information</h4>
@@ -648,12 +765,16 @@ const TeacherProfile = () => {
                   <div className="mb-3">
                     <label className="form-label">Experience</label>
                     {isEditing ? (
-                      <input 
-                        type="text" 
-                        className="form-control" 
-                        value={currentUser?.experience || ''} 
-                        onChange={(e) => handleInputChange('experience', e.target.value)}
-                      />
+                      <>
+                        <input 
+                          type="text" 
+                          className="form-control" 
+                          value={currentUser?.experience || ''} 
+                          onChange={(e) => handleInputChange('experience', e.target.value)}
+                          placeholder="e.g., 5 years"
+                        />
+                        <div className="form-text">Enter number of years (e.g., "5 years")</div>
+                      </>
                     ) : (
                       <input type="text" className="form-control" value={currentUser?.experience || ''} readOnly />
                     )}
@@ -661,12 +782,16 @@ const TeacherProfile = () => {
                   <div className="mb-3">
                     <label className="form-label">Hourly Rate</label>
                     {isEditing ? (
-                      <input 
-                        type="text" 
-                        className="form-control" 
-                        value={currentUser?.hourlyRate || ''} 
-                        onChange={(e) => handleInputChange('hourlyRate', e.target.value)}
-                      />
+                      <>
+                        <input 
+                          type="text" 
+                          className="form-control" 
+                          value={currentUser?.hourlyRate || ''} 
+                          onChange={(e) => handleInputChange('hourlyRate', e.target.value)}
+                          placeholder="e.g., LKR 2500"
+                        />
+                        <div className="form-text">Enter rate with currency (e.g., "LKR 2500")</div>
+                      </>
                     ) : (
                       <input type="text" className="form-control" value={currentUser?.hourlyRate || ''} readOnly />
                     )}
@@ -922,6 +1047,17 @@ const TeacherProfile = () => {
         .form-control[readonly] {
           background-color: #f8fafc;
           color: #64748b;
+        }
+
+        .form-text {
+          font-size: 0.75rem;
+          color: #6c757d;
+          margin-top: 0.25rem;
+        }
+
+        .alert {
+          border-radius: 0.5rem;
+          margin-bottom: 1rem;
         }
 
         .achievements-list {
