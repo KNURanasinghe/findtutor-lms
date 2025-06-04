@@ -617,7 +617,7 @@ const TeacherDashboard = () => {
                             </td>
                             <td>
                               <div className="fw-bold text-success">
-                                ${request.budget ? parseFloat(request.budget).toFixed(2) : '0.00'}
+                                LKR{request.budget ? parseFloat(request.budget).toFixed(2) : '0.00'}
                               </div>
                             </td>
                             <td>{request.location || 'Not specified'}</td>
