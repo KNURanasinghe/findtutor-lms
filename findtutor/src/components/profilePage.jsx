@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
@@ -17,6 +17,12 @@ const UniversalProfile = () => {
   const [userRole, setUserRole] = useState(null); // 'teacher' or 'student' - role of the profile being viewed
   const [loggedInUserRole, setLoggedInUserRole] = useState(null); // role of the logged-in user
   const [updateLoading, setUpdateLoading] = useState(false);
+  
+  // Image upload states
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const fileInputRef = useRef(null);
   
   // Classes state for teachers
   const [teacherClasses, setTeacherClasses] = useState([]);
@@ -58,6 +64,106 @@ const UniversalProfile = () => {
     educationLevel: 'College',
     subjects: 'Mathematics, Science',
     achievements: ['Honor Roll 2023', 'Science Fair Winner']
+  };
+
+  // Handle image file selection
+  const handleImageSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError('Please select a valid image file');
+        return;
+      }
+
+      // Validate file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image size should be less than 5MB');
+        return;
+      }
+
+      setSelectedImage(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+      
+      // Clear any previous errors
+      setError('');
+    }
+  };
+
+  // Upload image to server
+  const uploadImage = async () => {
+    if (!selectedImage) return null;
+
+    setImageUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('profileImage', selectedImage);
+      
+      // Get user ID from localStorage for the filename
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        const parsedUser = JSON.parse(userData);
+        const userId = parsedUser.user_id || parsedUser.id;
+        formData.append('userId', userId);
+      }
+
+      const response = await fetch('http://145.223.21.62:5000/api/users/upload-profile-image', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to upload image');
+      }
+
+      const result = await response.json();
+      return result.imageUrl;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      setError(`Failed to upload image: ${error.message}`);
+      return null;
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  // Update profile picture in database
+  const updateProfilePicture = async (imageUrl, userId) => {
+    try {
+      const response = await fetch(`http://145.223.21.62:5000/api/users/${userId}/profile-picture`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ profile_picture: imageUrl })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update profile picture');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating profile picture:', error);
+      throw error;
+    }
+  };
+
+  // Remove image selection
+  const removeImageSelection = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   useEffect(() => {
@@ -482,6 +588,9 @@ const UniversalProfile = () => {
   const handleEdit = () => {
     setIsEditing(true);
     setEditedUser({ ...user });
+    // Reset image states when starting edit
+    setSelectedImage(null);
+    setImagePreview(null);
   };
 
   const handleSave = async () => {
@@ -507,6 +616,21 @@ const UniversalProfile = () => {
       
       console.log('User ID from localStorage:', userId);
       console.log('User role:', userRole);
+      
+      // Handle image upload first if there's a new image
+      let imageUrl = editedUser.profilePicture;
+      if (selectedImage) {
+        console.log('Uploading new profile image...');
+        const uploadedImageUrl = await uploadImage();
+        if (uploadedImageUrl) {
+          imageUrl = uploadedImageUrl;
+          // Update profile picture in users table
+          await updateProfilePicture(uploadedImageUrl, userId);
+          console.log('Profile picture updated in users table');
+        } else {
+          throw new Error('Failed to upload image');
+        }
+      }
       
       let profileId, apiData, apiUrl;
       
@@ -571,9 +695,15 @@ const UniversalProfile = () => {
       const updatedProfile = await response.json();
       console.log('Profile updated successfully:', updatedProfile);
       
-      // Update local state with new data
-      setUser(editedUser);
+      // Update local state with new data including the new image URL
+      const updatedUser = { ...editedUser, profilePicture: imageUrl };
+      setUser(updatedUser);
+      setEditedUser(updatedUser);
       setIsEditing(false);
+      
+      // Reset image states
+      setSelectedImage(null);
+      setImagePreview(null);
       
       // Show success message
       setSuccessMessage('Profile updated successfully!');
@@ -596,6 +726,9 @@ const UniversalProfile = () => {
   const handleCancel = () => {
     setEditedUser({ ...user });
     setIsEditing(false);
+    // Reset image states
+    setSelectedImage(null);
+    setImagePreview(null);
   };
 
   const handleInputChange = (field, value) => {
@@ -796,7 +929,7 @@ const UniversalProfile = () => {
             <div className="col-auto">
               <div className="profile-avatar">
                 <img 
-                  src={currentUser?.profilePicture} 
+                  src={imagePreview || currentUser?.profilePicture} 
                   alt={currentUser?.name}
                   onError={(e) => {
                     const defaultImg = userRole === 'student' 
@@ -805,6 +938,44 @@ const UniversalProfile = () => {
                     e.target.src = defaultImg;
                   }}
                 />
+                
+                {/* Image upload overlay for editing mode */}
+                {isEditing && isOwnProfile && (
+                  <div className="image-upload-overlay">
+                    <button 
+                      className="btn btn-primary btn-sm upload-btn"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={imageUploading}
+                    >
+                      {imageUploading ? (
+                        <div className="spinner-border spinner-border-sm" role="status">
+                          <span className="visually-hidden">Uploading...</span>
+                        </div>
+                      ) : (
+                        <i className="bi bi-camera"></i>
+                      )}
+                    </button>
+                    
+                    {selectedImage && (
+                      <button 
+                        className="btn btn-danger btn-sm remove-btn"
+                        onClick={removeImageSelection}
+                        disabled={imageUploading}
+                      >
+                        <i className="bi bi-x"></i>
+                      </button>
+                    )}
+                    
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      style={{ display: 'none' }}
+                    />
+                  </div>
+                )}
+                
                 {userRole === 'teacher' && (
                   <div className="rating-badge">
                     <i className="bi bi-star-fill"></i>
@@ -885,7 +1056,7 @@ const UniversalProfile = () => {
                       <button 
                         className="btn btn-success" 
                         onClick={handleSave}
-                        disabled={updateLoading}
+                        disabled={updateLoading || imageUploading}
                       >
                         {updateLoading ? (
                           <>
@@ -902,7 +1073,7 @@ const UniversalProfile = () => {
                       <button 
                         className="btn btn-outline-secondary" 
                         onClick={handleCancel}
-                        disabled={updateLoading}
+                        disabled={updateLoading || imageUploading}
                       >
                         <i className="bi bi-x-lg me-2"></i>
                         Cancel
@@ -1015,6 +1186,20 @@ const UniversalProfile = () => {
                 type="button" 
                 className="btn-close" 
                 onClick={() => setError('')}
+              ></button>
+            </div>
+          )}
+
+          {/* Image Upload Status */}
+          {selectedImage && (
+            <div className="alert alert-info alert-dismissible fade show" role="alert">
+              <i className="bi bi-image me-2"></i>
+              New profile picture selected: {selectedImage.name}
+              <small className="d-block mt-1">Save your profile to upload the new image.</small>
+              <button 
+                type="button" 
+                className="btn-close" 
+                onClick={removeImageSelection}
               ></button>
             </div>
           )}
@@ -1428,6 +1613,35 @@ const UniversalProfile = () => {
           width: 100%;
           height: 100%;
           object-fit: cover;
+        }
+
+        .image-upload-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          opacity: 0;
+          transition: opacity 0.3s ease;
+        }
+
+        .profile-avatar:hover .image-upload-overlay {
+          opacity: 1;
+        }
+
+        .upload-btn, .remove-btn {
+          width: 35px;
+          height: 35px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0;
         }
 
         .rating-badge {
