@@ -385,7 +385,7 @@ const StudentPosts = () => {
               {/* Only show Create Post button for students */}
               {user?.role === 'student' && (
                 <button
-                  className="btn btn-primary btn-lg"
+                  className="btn btn-primary btn-lg me-5"
                   onClick={() => setShowPostForm(true)}
                 >
                   <i className="bi bi-plus-circle me-2"></i>
