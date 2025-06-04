@@ -53,6 +53,57 @@ const TeacherDashboard = () => {
 
   const API_BASE_URL = 'http://145.223.21.62:5000';
 
+  // Function to render user avatar with initials
+  const renderAvatar = (name, size = 60) => {
+    const initials = name 
+      ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+      : 'U';
+    
+    // Generate a consistent color based on user name
+    const getAvatarColor = (name) => {
+      if (!name) return '#6c757d';
+      
+      const colors = [
+        '#007bff', // Blue
+        '#28a745', // Green
+        '#dc3545', // Red
+        '#ffc107', // Yellow
+        '#17a2b8', // Cyan
+        '#6f42c1', // Purple
+        '#e83e8c', // Pink
+        '#fd7e14', // Orange
+        '#20c997', // Teal
+        '#6610f2'  // Indigo
+      ];
+      
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      
+      return colors[Math.abs(hash) % colors.length];
+    };
+    
+    return (
+      <div 
+        className="user-avatar rounded-circle d-flex align-items-center justify-content-center"
+        style={{ 
+          width: `${size}px`, 
+          height: `${size}px`, 
+          backgroundColor: getAvatarColor(name),
+          color: 'white',
+          fontSize: `${Math.max(12, size / 4)}px`,
+          fontWeight: '600',
+          border: '2px solid #fff',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          flexShrink: 0
+        }}
+      >
+        {initials}
+      </div>
+    );
+  };
+
   useEffect(() => {
     // Check if user is logged in and is a teacher
     if (!user || user.role !== 'teacher') {
@@ -457,15 +508,11 @@ const TeacherDashboard = () => {
       {/* Sidebar */}
       <div className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
-          <img
-            src={user?.profile_picture || 'https://via.placeholder.com/100'}
-            alt="Profile"
-            className="profile-image"
-          />
+          {renderAvatar(user?.name || 'Teacher', sidebarCollapsed ? 40 : 60)}
           {!sidebarCollapsed && (
             <>
-              <h5>{user?.name || 'Teacher Name'}</h5>
-              <p className="text-muted">Teacher</p>
+              <h5 className="mt-2 mb-1">{user?.name || 'Teacher Name'}</h5>
+              <p className="text-muted mb-1">Teacher</p>
               {teacherId && (
                 <small className="text-muted">ID: {teacherId}</small>
               )}
@@ -638,15 +685,9 @@ const TeacherDashboard = () => {
                           <tr key={request.id}>
                             <td>
                               <div className="d-flex align-items-center">
-                                <img 
-                                  src={request.student_profile_picture || 'https://via.placeholder.com/40'} 
-                                  alt={request.student_name}
-                                  className="rounded-circle me-2"
-                                  style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                                  onError={(e) => {
-                                    e.target.src = 'https://via.placeholder.com/40';
-                                  }}
-                                />
+                                <div className="me-2">
+                                  {renderAvatar(request.student_name, 40)}
+                                </div>
                                 <div>
                                   <div className="fw-bold">{request.student_name}</div>
                                   <small className="text-muted">ID: {request.student_id}</small>
@@ -1079,19 +1120,9 @@ const TeacherDashboard = () => {
           padding-bottom: 10px;
         }
 
-        .profile-image {
-          width: 60px;
-          height: 60px;
-          border-radius: 50%;
-          object-fit: cover;
+        .user-avatar {
           margin-bottom: 10px;
           transition: all 0.3s ease;
-        }
-
-        .sidebar.collapsed .profile-image {
-          width: 40px;
-          height: 40px;
-          margin-bottom: 5px;
         }
 
         .nav-link {
