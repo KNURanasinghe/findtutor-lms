@@ -111,6 +111,7 @@ const UniversalProfile = () => {
         const parsedUser = JSON.parse(userData);
         const userId = parsedUser.user_id || parsedUser.id;
         formData.append('userId', userId);
+        console.log('Uploading image with form data:',userId );
       }
 
       const response = await fetch('http://145.223.21.62:5000/api/users/upload-profile-image', {
