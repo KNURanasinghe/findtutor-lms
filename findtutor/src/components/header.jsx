@@ -44,12 +44,61 @@ const Header = () => {
 
   const handleLogout = async () => {
     try {
-      
       await logout();
       navigate('/');
     } catch (error) {
       console.error('Logout failed:', error);
     }
+  };
+
+  // Function to render user avatar with initials
+  const renderAvatar = () => {
+    const initials = user?.name 
+      ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+      : 'U';
+    
+    // Generate a consistent color based on user name
+    const getAvatarColor = (name) => {
+      if (!name) return '#6c757d';
+      
+      const colors = [
+        '#007bff', // Blue
+        '#28a745', // Green
+        '#dc3545', // Red
+        '#ffc107', // Yellow
+        '#17a2b8', // Cyan
+        '#6f42c1', // Purple
+        '#e83e8c', // Pink
+        '#fd7e14', // Orange
+        '#20c997', // Teal
+        '#6610f2'  // Indigo
+      ];
+      
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      
+      return colors[Math.abs(hash) % colors.length];
+    };
+    
+    return (
+      <div 
+        className="user-avatar rounded-circle me-2 d-flex align-items-center justify-content-center"
+        style={{ 
+          width: '32px', 
+          height: '32px', 
+          backgroundColor: getAvatarColor(user?.name),
+          color: 'white',
+          fontSize: '13px',
+          fontWeight: '600',
+          border: '2px solid #fff',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}
+      >
+        {initials}
+      </div>
+    );
   };
 
   return (
@@ -117,34 +166,40 @@ const Header = () => {
               {user ? (
                 <div className="dropdown position-relative">
                   <button
-                    className="btn btn-link text-dark text-decoration-none"
+                    className="btn btn-link text-dark text-decoration-none d-flex align-items-center"
                     onClick={() => setShowDropdown(!showDropdown)}
+                    style={{ border: 'none', background: 'none', padding: '0' }}
                   >
-                    <img
-                      src={user.profile_picture || 'https://via.placeholder.com/100'}
-                      alt="Profile"
-                      className="rounded-circle me-2"
-                      style={{ width: '32px', height: '32px', objectFit: 'cover' }}
-                    />
-                    {user.name}
+                    {renderAvatar()}
+                    <span>{user.name}</span>
                   </button>
                   {showDropdown && (
                     <div className="dropdown-menu show position-absolute end-0 mt-2">
                       <Link 
                         className="dropdown-item" 
                         to={user.role === 'teacher' ? '/dashboard/teacher' : '/dashboard/student'}
+                        onClick={() => setShowDropdown(false)}
                       >
                         <i className="bi bi-speedometer2 me-2"></i>
                         Dashboard
                       </Link>
-                      <Link className="dropdown-item" to="/teacher-profile">
+                      <Link 
+                        className="dropdown-item" 
+                        to="/teacher-profile"
+                        onClick={() => setShowDropdown(false)}
+                      >
                         <i className="bi bi-person me-2"></i>
                         Profile
                       </Link>
-                      <Link className="dropdown-item" to="/settings">
+                      <Link 
+                        className="dropdown-item" 
+                        to="/settings"
+                        onClick={() => setShowDropdown(false)}
+                      >
                         <i className="bi bi-gear me-2"></i>
                         Settings
                       </Link>
+                      <div className="dropdown-divider"></div>
                       <button className="dropdown-item text-danger" onClick={handleLogout}>
                         <i className="bi bi-box-arrow-right me-2"></i>
                         Logout
