@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
+import RequestTeacher from './request-teacher'; // Import the RequestTeacher component
 
 const UniversalProfile = () => {
   const { profileId } = useParams(); // Get profile ID from URL (can be teacher or student)
@@ -13,7 +14,8 @@ const UniversalProfile = () => {
   const [editedUser, setEditedUser] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
   const [isOwnProfile, setIsOwnProfile] = useState(false);
-  const [userRole, setUserRole] = useState(null); // 'teacher' or 'student'
+  const [userRole, setUserRole] = useState(null); // 'teacher' or 'student' - role of the profile being viewed
+  const [loggedInUserRole, setLoggedInUserRole] = useState(null); // role of the logged-in user
   const [updateLoading, setUpdateLoading] = useState(false);
 
   // Mock data for fallback
@@ -62,22 +64,22 @@ const UniversalProfile = () => {
         // Get logged-in user data from localStorage
         const userData = localStorage.getItem('user');
         let loggedInUserId = null;
-        let loggedInUserRole = null;
+        let loggedInUserRoleFromStorage = null;
         
         if (userData) {
           try {
             const parsedUser = JSON.parse(userData);
             loggedInUserId = parsedUser.user_id || parsedUser.id;
-            loggedInUserRole = parsedUser.role; // 'teacher' or 'student'
-            setUserRole(loggedInUserRole);
-            console.log('Logged in user ID:', loggedInUserId, 'Role:', loggedInUserRole);
+            loggedInUserRoleFromStorage = parsedUser.role; // 'teacher' or 'student'
+            setLoggedInUserRole(loggedInUserRoleFromStorage); // Set logged-in user's role
+            console.log('Logged in user ID:', loggedInUserId, 'Role:', loggedInUserRoleFromStorage);
           } catch (parseError) {
             console.error('Error parsing logged-in user data:', parseError);
           }
         }
         
         let currentProfile;
-        let profileRole = loggedInUserRole; // Default to logged-in user's role
+        let profileRole = loggedInUserRoleFromStorage; // Default to logged-in user's role
         
         if (profileId) {
           // Viewing a specific profile from URL parameter
@@ -116,7 +118,7 @@ const UniversalProfile = () => {
                 console.log('Found teacher profile:', currentProfile.name);
                 
                 // Check if this is the logged-in user's own profile
-                if (loggedInUserId && loggedInUserRole === 'teacher') {
+                if (loggedInUserId && loggedInUserRoleFromStorage === 'teacher') {
                   const loggedInTeacher = teachers.find(teacher => {
                     const matches = teacher.user_id === parseInt(loggedInUserId) || teacher.user_id === loggedInUserId;
                     return matches;
@@ -163,7 +165,7 @@ const UniversalProfile = () => {
                   console.log('Found student profile:', currentProfile.name);
                   
                   // Check if this is the logged-in user's own profile
-                  if (loggedInUserId && loggedInUserRole === 'student') {
+                  if (loggedInUserId && loggedInUserRoleFromStorage === 'student') {
                     const loggedInStudent = students.find(student => {
                       const matches = student.user_id === parseInt(loggedInUserId) || student.user_id === loggedInUserId;
                       return matches;
@@ -193,16 +195,16 @@ const UniversalProfile = () => {
           // No specific profile ID in URL - show logged-in user's profile
           console.log('No profileId in URL, showing logged-in user profile');
           
-          if (!loggedInUserId || !loggedInUserRole) {
+          if (!loggedInUserId || !loggedInUserRoleFromStorage) {
             console.warn('No user data found in localStorage and no profile ID in URL');
-            setUser(loggedInUserRole === 'student' ? mockStudent : mockTeacher);
-            setEditedUser(loggedInUserRole === 'student' ? mockStudent : mockTeacher);
+            setUser(loggedInUserRoleFromStorage === 'student' ? mockStudent : mockTeacher);
+            setEditedUser(loggedInUserRoleFromStorage === 'student' ? mockStudent : mockTeacher);
             setIsOwnProfile(true);
             setLoading(false);
             return;
           }
           
-          if (loggedInUserRole === 'teacher') {
+          if (loggedInUserRoleFromStorage === 'teacher') {
             // Fetch teachers and find logged-in user's profile
             const teachersResponse = await fetch('http://145.223.21.62:5000/api/teachers');
             if (!teachersResponse.ok) {
@@ -233,7 +235,7 @@ const UniversalProfile = () => {
               currentProfile = basicProfile;
             }
             profileRole = 'teacher';
-          } else if (loggedInUserRole === 'student') {
+          } else if (loggedInUserRoleFromStorage === 'student') {
             // Fetch students and find logged-in user's profile
             const studentsResponse = await fetch('http://145.223.21.62:5000/api/students');
             if (!studentsResponse.ok) {
@@ -331,7 +333,7 @@ const UniversalProfile = () => {
         
         setUser(mappedUser);
         setEditedUser(mappedUser);
-        setUserRole(profileRole);
+        setUserRole(profileRole); // Set the role of the profile being viewed
       } catch (err) {
         console.error('Error fetching profile:', err);
         console.log('Profile ID that failed:', profileId);
@@ -397,6 +399,7 @@ const UniversalProfile = () => {
               setEditedUser(basicProfile);
               setIsOwnProfile(true);
               setUserRole(role);
+              setLoggedInUserRole(role);
             } catch (parseError) {
               console.error('Error creating basic profile:', parseError);
               const defaultProfile = mockTeacher;
@@ -404,12 +407,14 @@ const UniversalProfile = () => {
               setEditedUser(defaultProfile);
               setIsOwnProfile(true);
               setUserRole('teacher');
+              setLoggedInUserRole('teacher');
             }
           } else {
             setUser(mockTeacher);
             setEditedUser(mockTeacher);
             setIsOwnProfile(true);
             setUserRole('teacher');
+            setLoggedInUserRole('teacher');
           }
         }
       } finally {
@@ -422,7 +427,7 @@ const UniversalProfile = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('user');
-    const loginPath = userRole === 'student' ? '/login/student' : '/login/teacher';
+    const loginPath = loggedInUserRole === 'student' ? '/login/student' : '/login/teacher';
     window.location.href = loginPath;
   };
 
@@ -557,6 +562,14 @@ const UniversalProfile = () => {
     }
   };
 
+  const handleRequestSent = (result) => {
+    // Handle the request sent successfully
+    setSuccessMessage('Request sent to teacher successfully!');
+    setTimeout(() => {
+      setSuccessMessage('');
+    }, 3000);
+  };
+
   const validateForm = () => {
     if (isEditing) {
       if (userRole === 'teacher') {
@@ -645,7 +658,7 @@ const UniversalProfile = () => {
             </div>
             <button 
               className="btn btn-primary"
-              onClick={() => window.location.href = `/login/${userRole || 'teacher'}`}
+              onClick={() => window.location.href = `/login/${loggedInUserRole || 'teacher'}`}
             >
               <i className="bi bi-box-arrow-in-right me-2"></i>
               Go to Login
@@ -710,7 +723,7 @@ const UniversalProfile = () => {
             <button 
               className="btn btn-primary"
               onClick={() => {
-                const fallback = userRole === 'student' ? mockStudent : mockTeacher;
+                const fallback = loggedInUserRole === 'student' ? mockStudent : mockTeacher;
                 setUser(fallback);
                 setEditedUser(fallback);
               }}
@@ -723,62 +736,11 @@ const UniversalProfile = () => {
     );
   }
 
+  // Check if logged-in user is a student viewing a teacher's profile
+  const showRequestButton = !isOwnProfile && loggedInUserRole === 'student' && userRole === 'teacher';
+
   return (
     <div className="profile-container">
-      {/* Debug Panel - Remove in production */}
-      {/* <div className="debug-panel">
-        <div className="container-fluid">
-          <div className="alert alert-info" role="alert">
-            <strong>Debug Info:</strong> 
-            <span className="ms-2">
-              URL Profile ID: {profileId || 'None (Own Profile)'}
-            </span>
-            <span className="ms-3">
-              User Role: {userRole || 'Unknown'}
-            </span>
-            <span className="ms-3">
-              Is Own Profile: {isOwnProfile ? 'Yes' : 'No'}
-            </span>
-            <span className="ms-3">
-              User ID: {(() => {
-                try {
-                  const userData = localStorage.getItem('user');
-                  if (userData) {
-                    const parsed = JSON.parse(userData);
-                    return parsed.user_id || parsed.id || 'Not Found';
-                  }
-                  return 'None';
-                } catch (e) {
-                  return 'Invalid JSON';
-                }
-              })()}
-            </span>
-            <span className="ms-3">
-              Profile ID: {user?.id || 'Not Resolved'}
-            </span>
-            <span className="ms-3">Profile: {user ? 'Loaded' : 'Not Loaded'}</span>
-            <button 
-              className="btn btn-sm btn-outline-primary ms-3"
-              onClick={() => {
-                localStorage.clear();
-                window.location.reload();
-              }}
-            >
-              Clear Storage
-            </button>
-            <button 
-              className="btn btn-sm btn-outline-secondary ms-2"
-              onClick={() => {
-                console.log('Current state:', { user, error, loading, isOwnProfile, profileId, userRole });
-                console.log('localStorage user:', localStorage.getItem('user'));
-              }}
-            >
-              Log State
-            </button>
-          </div>
-        </div>
-      </div> */}
-
       {/* Profile Header */}
       <div className="profile-header">
         <div className="container-fluid">
@@ -901,15 +863,26 @@ const UniversalProfile = () => {
                   )}
                 </>
               )}
-              {!isOwnProfile && (
+              {showRequestButton && (
                 <div className="btn-group">
-                  <button className="btn btn-primary">
-                    <i className="bi bi-chat-dots me-2"></i>
-                    Message {userRole === 'teacher' ? 'Teacher' : 'Student'}
-                  </button>
+                  <RequestTeacher
+                    teacherId={currentUser?.id}
+                    teacherName={currentUser?.name}
+                    onRequestSent={handleRequestSent}
+                    buttonText="Send Request"
+                    buttonVariant="primary"
+                  />
                   <button className="btn btn-outline-primary">
                     <i className="bi bi-heart me-2"></i>
                     Save
+                  </button>
+                </div>
+              )}
+              {!isOwnProfile && !showRequestButton && (
+                <div className="btn-group">
+                  <button className="btn btn-outline-primary">
+                    <i className="bi bi-heart me-2"></i>
+                    Save Profile
                   </button>
                 </div>
               )}
@@ -1013,19 +986,6 @@ const UniversalProfile = () => {
                       />
                     ) : (
                       <input type="email" className="form-control" value={currentUser?.email || ''} readOnly />
-                    )}
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Phone</label>
-                    {isEditing && isOwnProfile ? (
-                      <input 
-                        type="tel" 
-                        className="form-control" 
-                        value={currentUser?.phone || ''} 
-                        onChange={(e) => handleInputChange('phone', e.target.value)}
-                      />
-                    ) : (
-                      <input type="tel" className="form-control" value={currentUser?.phone || ''} readOnly />
                     )}
                   </div>
                   <div className="mb-3">
