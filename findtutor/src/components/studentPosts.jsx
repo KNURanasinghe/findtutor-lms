@@ -458,7 +458,7 @@ const StudentPosts = () => {
                   : 'Browse student posts and connect with those seeking tutoring in your expertise.'
                 }
               </p>
-              {/* Show profile status for debugging */}
+              {/* Show profile status for debugging
               {user?.role === 'student' && (
                 <div className="mb-3">
                   <small className="text-muted">
@@ -472,7 +472,7 @@ const StudentPosts = () => {
                     Teacher ID: {teacherProfileId || 'Loading...'}
                   </small>
                 </div>
-              )}
+              )} */}
               {/* Only show Create Post button for students with valid profile ID */}
               {user?.role === 'student' && studentProfileId && (
                 <button
