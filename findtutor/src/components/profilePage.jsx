@@ -1535,14 +1535,14 @@ const UniversalProfile = () => {
                     </div>
                   )}
                   
-                  {isOwnProfile && teacherClasses.length > 0 && (
+                  {/* {isOwnProfile && teacherClasses.length > 0 && (
                     <div className="text-center mt-4">
                       <button className="btn btn-primary">
                         <i className="bi bi-plus me-2"></i>
                         Add New Class
                       </button>
                     </div>
-                  )}
+                  )} */}
                 </>
               )}
             </div>
