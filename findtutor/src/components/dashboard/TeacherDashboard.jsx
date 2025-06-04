@@ -324,8 +324,8 @@ const TeacherDashboard = () => {
     try {
       console.log(`Updating request ${requestId} to status: ${newStatus}`);
       
-      const response = await fetch(`${API_BASE_URL}/api/requests/${requestId}`, {
-        method: 'PUT',
+      const response = await fetch(`${API_BASE_URL}/api/requests/${requestId}/status`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },

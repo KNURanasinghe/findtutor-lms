@@ -12,6 +12,7 @@ const StudentDashboard = () => {
   const [tutorRequests, setTutorRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [studentProfileId, setStudentProfileId] = useState(null);
 
   useEffect(() => {
     // Check if user is logged in and is a student
@@ -20,20 +21,53 @@ const StudentDashboard = () => {
     }
   }, [user, navigate]);
 
-  // Fetch tutor requests when component mounts or when activeTab is 'requests'
+  // Fetch student profile ID when component mounts
   useEffect(() => {
-    if (activeTab === 'requests' && user?.id) {
+    if (user?.id) {
+      fetchStudentProfileId();
+    }
+  }, [user?.id]);
+
+  // Fetch tutor requests when we have student profile ID and activeTab is 'requests'
+  useEffect(() => {
+    if (activeTab === 'requests' && studentProfileId) {
       fetchTutorRequests();
     }
-  }, [activeTab, user?.id]);
+  }, [activeTab, studentProfileId]);
+
+  const fetchStudentProfileId = async () => {
+    try {
+      const response = await fetch('http://145.223.21.62:5000/api/students');
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch students: ${response.status}`);
+      }
+      
+      const students = await response.json();
+      const studentProfile = students.find(student => 
+        student.user_id === parseInt(user.id) || student.user_id === user.id
+      );
+      
+      if (studentProfile) {
+        setStudentProfileId(studentProfile.student_id);
+        console.log('Found student profile ID:', studentProfile.student_id);
+      } else {
+        setError('Student profile not found. Please complete your registration.');
+      }
+    } catch (err) {
+      console.error('Error fetching student profile ID:', err);
+      setError('Failed to load student profile.');
+    }
+  };
 
   const fetchTutorRequests = async () => {
     setLoading(true);
     setError(null);
     
     try {
+      // Use the correct API endpoint with student_id query parameter
       const response = await fetch(
-        `http://145.223.21.62:5000/api/students/student_id=${user.id}/requests`,
+        `http://145.223.21.62:5000/api/requests?student_id=${studentProfileId}`,
         {
           method: 'GET',
           headers: {
@@ -50,11 +84,41 @@ const StudentDashboard = () => {
 
       const data = await response.json();
       setTutorRequests(data);
+      console.log('Fetched tutor requests:', data);
     } catch (err) {
       console.error('Error fetching tutor requests:', err);
       setError('Failed to load tutor requests. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateRequestStatus = async (requestId, newStatus) => {
+    try {
+      const response = await fetch(
+        `http://145.223.21.62:5000/api/requests/${requestId}/status`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ status: newStatus })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to update request status: ${response.status}`);
+      }
+
+      // Refresh the requests list
+      fetchTutorRequests();
+      
+      // Show success message
+      const action = newStatus === 'accepted' ? 'accepted' : 'declined';
+      alert(`Request ${action} successfully!`);
+    } catch (err) {
+      console.error('Error updating request status:', err);
+      alert('Failed to update request status. Please try again.');
     }
   };
 
@@ -72,14 +136,16 @@ const StudentDashboard = () => {
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric'
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
   const getStatusBadgeClass = (status) => {
     switch (status?.toLowerCase()) {
       case 'pending':
-        return 'bg-warning';
+        return 'bg-warning text-dark';
       case 'accepted':
         return 'bg-success';
       case 'declined':
@@ -148,6 +214,9 @@ const StudentDashboard = () => {
           />
           <h5>{user?.name || 'Student Name'}</h5>
           <p className="text-muted">Student</p>
+          {studentProfileId && (
+            <small className="text-muted">ID: {studentProfileId}</small>
+          )}
         </div>
 
         <ul className="nav flex-column">
@@ -158,6 +227,9 @@ const StudentDashboard = () => {
             >
               <i className="bi bi-envelope me-2"></i>
               Tutor Requests
+              {tutorRequests.length > 0 && (
+                <span className="badge bg-primary ms-2">{tutorRequests.length}</span>
+              )}
             </button>
           </li>
           <li className="nav-item">
@@ -215,16 +287,28 @@ const StudentDashboard = () => {
             <div className="card">
               <div className="card-body">
                 <div className="d-flex justify-content-between align-items-center mb-3">
-                  <h5 className="card-title mb-0">Tutor Requests</h5>
+                  <h5 className="card-title mb-0">
+                    My Tutor Requests
+                    {tutorRequests.length > 0 && (
+                      <span className="badge bg-secondary ms-2">{tutorRequests.length}</span>
+                    )}
+                  </h5>
                   <button 
                     className="btn btn-outline-primary btn-sm"
                     onClick={fetchTutorRequests}
-                    disabled={loading}
+                    disabled={loading || !studentProfileId}
                   >
                     <i className="bi bi-arrow-clockwise me-1"></i>
                     {loading ? 'Refreshing...' : 'Refresh'}
                   </button>
                 </div>
+
+                {!studentProfileId && (
+                  <div className="alert alert-warning" role="alert">
+                    <i className="bi bi-exclamation-triangle me-2"></i>
+                    Loading student profile...
+                  </div>
+                )}
 
                 {error && (
                   <div className="alert alert-danger" role="alert">
@@ -242,15 +326,23 @@ const StudentDashboard = () => {
                   </div>
                 ) : (
                   <>
-                    {tutorRequests.length === 0 ? (
+                    {tutorRequests.length === 0 && studentProfileId ? (
                       <div className="text-center py-4">
                         <i className="bi bi-inbox display-4 text-muted"></i>
-                        <p className="mt-2 text-muted">No tutor requests found.</p>
+                        <h5 className="mt-2 text-muted">No tutor requests found</h5>
+                        <p className="text-muted">You haven't sent any requests to teachers yet.</p>
+                        <button 
+                          className="btn btn-primary"
+                          onClick={() => navigate('/teachers')}
+                        >
+                          <i className="bi bi-search me-2"></i>
+                          Find Teachers
+                        </button>
                       </div>
-                    ) : (
+                    ) : tutorRequests.length > 0 ? (
                       <div className="table-responsive">
-                        <table className="table">
-                          <thead>
+                        <table className="table table-hover">
+                          <thead className="table-light">
                             <tr>
                               <th>Teacher</th>
                               <th>Subject</th>
@@ -260,7 +352,7 @@ const StudentDashboard = () => {
                               <th>Location</th>
                               <th>Date</th>
                               <th>Status</th>
-                              <th>Action</th>
+                              <th>Actions</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -273,54 +365,95 @@ const StudentDashboard = () => {
                                       alt="Teacher"
                                       className="rounded-circle me-2"
                                       style={{ width: '32px', height: '32px', objectFit: 'cover' }}
+                                      onError={(e) => {
+                                        e.target.src = 'https://via.placeholder.com/32';
+                                      }}
                                     />
-                                    {request.teacher_name}
+                                    <div>
+                                      <div className="fw-bold">{request.teacher_name}</div>
+                                      <small className="text-muted">ID: {request.teacher_id}</small>
+                                    </div>
                                   </div>
                                 </td>
-                                <td>{request.subject_name}</td>
-                                <td>{request.class_title || 'N/A'}</td>
+                                <td>
+                                  <span className="badge bg-primary">{request.subject_name}</span>
+                                </td>
+                                <td>
+                                  {request.class_title ? (
+                                    <span className="badge bg-info">{request.class_title}</span>
+                                  ) : (
+                                    <span className="text-muted">General Request</span>
+                                  )}
+                                </td>
                                 <td>
                                   <span 
                                     className="text-truncate d-inline-block" 
-                                    style={{ maxWidth: '150px' }}
+                                    style={{ maxWidth: '200px' }}
                                     title={request.message}
                                   >
                                     {request.message}
                                   </span>
                                 </td>
-                                <td>${request.budget}</td>
-                                <td>{request.location}</td>
-                                <td>{formatDate(request.created_at)}</td>
+                                <td>
+                                  {request.budget ? (
+                                    <span className="text-success fw-bold">${request.budget}</span>
+                                  ) : (
+                                    <span className="text-muted">Not specified</span>
+                                  )}
+                                </td>
+                                <td>
+                                  <i className="bi bi-geo-alt text-muted me-1"></i>
+                                  {request.location || 'Not specified'}
+                                </td>
+                                <td>
+                                  <small>{formatDate(request.created_at)}</small>
+                                </td>
                                 <td>
                                   <span className={`badge ${getStatusBadgeClass(request.status)}`}>
-                                    {request.status}
+                                    {request.status?.toUpperCase()}
                                   </span>
                                 </td>
                                 <td>
-                                  <button className="btn btn-sm btn-primary me-1">
-                                    View Details
-                                  </button>
-                                  {request.status === 'pending' && (
-                                    <>
-                                      <button className="btn btn-sm btn-success me-1">
-                                        Accept
+                                  <div className="btn-group btn-group-sm">
+                                    <button 
+                                      className="btn btn-outline-primary"
+                                      title="View Details"
+                                    >
+                                      <i className="bi bi-eye"></i>
+                                    </button>
+                                    {request.status === 'pending' && (
+                                      <button 
+                                        className="btn btn-outline-danger"
+                                        onClick={() => {
+                                          if (window.confirm('Are you sure you want to cancel this request?')) {
+                                            updateRequestStatus(request.id, 'declined');
+                                          }
+                                        }}
+                                        title="Cancel Request"
+                                      >
+                                        <i className="bi bi-x-lg"></i>
                                       </button>
-                                      <button className="btn btn-sm btn-danger">
-                                        Decline
-                                      </button>
-                                    </>
-                                  )}
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       </div>
-                    )}
+                    ) : null}
                   </>
                 )}
                 
-                <button className="btn btn-primary mt-3">Request New Tutor</button>
+                <div className="mt-3">
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => navigate('/find-teachers')}
+                  >
+                    <i className="bi bi-plus me-2"></i>
+                    Request New Tutor
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -413,38 +546,6 @@ const StudentDashboard = () => {
           )}
 
           {activeTab === 'profile' && (
-            // <div className="card">
-            //   <div className="card-body">
-            //     <h5 className="card-title">Profile Information</h5>
-            //     <div className="row">
-            //       <div className="col-md-6">
-            //         <div className="mb-3">
-            //           <label className="form-label">Name</label>
-            //           <input type="text" className="form-control" value={profileData.name} readOnly />
-            //         </div>
-            //         <div className="mb-3">
-            //           <label className="form-label">Email</label>
-            //           <input type="email" className="form-control" value={profileData.email} readOnly />
-            //         </div>
-            //         <div className="mb-3">
-            //           <label className="form-label">Grade</label>
-            //           <input type="text" className="form-control" value={profileData.grade} readOnly />
-            //         </div>
-            //       </div>
-            //       <div className="col-md-6">
-            //         <div className="mb-3">
-            //           <label className="form-label">Subjects</label>
-            //           <input type="text" className="form-control" value={profileData.subjects.join(', ')} readOnly />
-            //         </div>
-            //         <div className="mb-3">
-            //           <label className="form-label">Join Date</label>
-            //           <input type="text" className="form-control" value={profileData.joinDate} readOnly />
-            //         </div>
-            //       </div>
-            //     </div>
-            //     <button className="btn btn-primary">Edit Profile</button>
-            //   </div>
-            // </div>
             <UniversalProfile/>
           )}
         </div>
@@ -492,6 +593,9 @@ const StudentDashboard = () => {
           background: none;
           border: none;
           cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
         }
 
         .nav-link:hover {
@@ -541,6 +645,15 @@ const StudentDashboard = () => {
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+        }
+
+        .table-hover tbody tr:hover {
+          background-color: #f8f9fa;
+        }
+
+        .btn-group-sm > .btn {
+          padding: 0.25rem 0.5rem;
+          font-size: 0.75rem;
         }
 
         @media (max-width: 768px) {
