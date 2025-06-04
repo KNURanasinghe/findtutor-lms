@@ -29,6 +29,74 @@ const StudentPosts = () => {
 
   const API_BASE_URL = 'http://145.223.21.62:5000';
 
+  const fetchStudentPosts = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching posts from API...');
+
+      const response = await fetch(`${API_BASE_URL}/api/student-posts`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const posts = await response.json();
+      console.log('Posts fetched successfully:', posts);
+
+      // Format posts to match frontend expectations
+      const formattedPosts = posts.map(post => ({
+        id: post.id,
+        student_id: post.student_id,
+        studentName: post.studentName,
+        subject: post.subject,
+        subject_id: post.subject_id,
+        grade: post.grade,
+        class_id: post.class_id,
+        description: post.description,
+        budget: post.budget,
+        contact: post.contact,
+        location: post.location,
+        postedDate: getTimeAgo(post.created_at),
+        created_at: post.created_at,
+        student_profile_picture: post.student_profile_picture
+      }));
+
+      setStudentPosts(formattedPosts);
+
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+      alert('Failed to load posts. Please check your connection.');
+      // Keep sample data as fallback
+      setStudentPosts(sampleStudentPosts);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getTimeAgo = (dateString) => {
+    if (!dateString) return 'Just now';
+
+    const now = new Date();
+    const postDate = new Date(dateString);
+    const diffInSeconds = Math.floor((now - postDate) / 1000);
+
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60);
+      return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    }
+    if (diffInSeconds < 86400) {
+      const hours = Math.floor(diffInSeconds / 3600);
+      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    }
+    const days = Math.floor(diffInSeconds / 86400);
+    return `${days} day${days > 1 ? 's' : ''} ago`;
+  };
+
+  const refreshPosts = async () => {
+    await fetchStudentPosts();
+  };
+
   // Sample subjects with IDs (you should get these from your API)
   const subjects = [
     { id: 1, name: 'Mathematics' },
@@ -89,16 +157,16 @@ const StudentPosts = () => {
         const userData = localStorage.getItem('user');
         if (userData) {
           const parsedUser = JSON.parse(userData);
-          
+
           // Allow both students and teachers to access the page
           if (parsedUser.role !== 'student' && parsedUser.role !== 'teacher') {
             alert('Access denied. Please login as a student or teacher.');
             navigate('/login');
             return;
           }
-          
+
           setUser(parsedUser);
-          
+
           // Only set contact for students (for creating posts)
           if (parsedUser.role === 'student') {
             setNewPost(prev => ({
@@ -121,8 +189,11 @@ const StudentPosts = () => {
   }, [navigate]);
 
   useEffect(() => {
-    setStudentPosts(sampleStudentPosts);
-  }, []);
+    // Only fetch posts after user is loaded and verified
+    if (user) {
+      fetchStudentPosts();
+    }
+  }, [user]); // Depend on user so it fetches when user loads
 
   // Create request function
   const createRequest = async (requestPayload) => {
@@ -168,12 +239,12 @@ const StudentPosts = () => {
       };
 
       const result = await createRequest(requestPayload);
-      
+
       alert('Request sent successfully!');
       setShowRequestModal(false);
       setRequestData({ message: '', budget: '', location: '' });
       setSelectedPost(null);
-      
+
     } catch (error) {
       console.error('Error sending request:', error);
       alert('Failed to send request. Please try again.');
@@ -198,39 +269,87 @@ const StudentPosts = () => {
     }
   };
 
-  const handlePostSubmit = (e) => {
+  const handlePostSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Only allow students to create posts
     if (user.role !== 'student') {
       alert('Only students can create posts.');
       return;
     }
-    
-    const post = {
-      id: studentPosts.length + 1,
-      student_id: user.id,
-      studentName: user.name,
-      subject_id: subjects.find(s => s.name === newPost.subject)?.id || 1,
-      class_id: 1, // You might want to make this dynamic
-      ...newPost,
-      postedDate: 'Just now',
-      location: 'Not specified'
-    };
-    setStudentPosts([post, ...studentPosts]);
-    setShowPostForm(false);
-    setNewPost({
-      subject: '',
-      grade: '',
-      description: '',
-      budget: '',
-      contact: ''
-    });
+
+    // Validate required fields
+    if (!newPost.subject || !newPost.grade || !newPost.description || !newPost.budget || !newPost.contact) {
+      alert('Please fill in all required fields.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Find the subject ID
+      const selectedSubject = subjects.find(s => s.name === newPost.subject);
+      if (!selectedSubject) {
+        alert('Please select a valid subject');
+        return;
+      }
+
+      // Prepare the post data for API
+      const postData = {
+        student_id: user.student_id || user.id, // Adjust based on your user object structure
+        subject_id: selectedSubject.id,
+        grade: newPost.grade,
+        description: newPost.description,
+        budget: newPost.budget,
+        contact: newPost.contact,
+        location: 'Not specified' // You can make this dynamic later
+      };
+
+      console.log('Creating post with data:', postData);
+
+      // Make API call to create the post
+      const response = await fetch(`${API_BASE_URL}/api/student-posts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(postData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create post');
+      }
+
+      const result = await response.json();
+      console.log('Post created successfully:', result);
+
+      // Close form and reset
+      setShowPostForm(false);
+      setNewPost({
+        subject: '',
+        grade: '',
+        description: '',
+        budget: '',
+        contact: user.email || ''
+      });
+
+      // Refresh the posts list to show the new post
+      await fetchStudentPosts();
+
+      alert('Post created successfully!');
+
+    } catch (error) {
+      console.error('Error creating post:', error);
+      alert(`Failed to create post: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filteredPosts = studentPosts.filter(post => {
     const matchesSubject = !selectedSubject || post.subject === selectedSubject;
-    const matchesSearch = !searchQuery || 
+    const matchesSearch = !searchQuery ||
       post.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       post.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSubject && matchesSearch;
@@ -258,14 +377,14 @@ const StudentPosts = () => {
                 {user?.role === 'student' ? 'Find Your Perfect Teacher' : 'Connect with Students'}
               </h1>
               <p className="lead mb-5">
-                {user?.role === 'student' 
+                {user?.role === 'student'
                   ? 'Post your requirements and let teachers find you. Or browse existing posts to connect with students.'
                   : 'Browse student posts and connect with those seeking tutoring in your expertise.'
                 }
               </p>
               {/* Only show Create Post button for students */}
               {user?.role === 'student' && (
-                <button 
+                <button
                   className="btn btn-primary btn-lg"
                   onClick={() => setShowPostForm(true)}
                 >
@@ -273,6 +392,14 @@ const StudentPosts = () => {
                   Create New Post
                 </button>
               )}
+              <button
+                className="btn btn-outline-primary btn-lg"
+                onClick={refreshPosts}
+                disabled={loading}
+              >
+                <i className="bi bi-arrow-clockwise me-2"></i>
+                {loading ? 'Loading...' : 'Refresh Posts'}
+              </button>
             </div>
           </div>
         </div>
@@ -324,7 +451,7 @@ const StudentPosts = () => {
             <div className="post-form-card">
               <div className="d-flex justify-content-between align-items-center mb-4">
                 <h2 className="form-title">Create New Post</h2>
-                <button 
+                <button
                   className="btn btn-outline-secondary"
                   onClick={() => setShowPostForm(false)}
                 >
@@ -339,7 +466,7 @@ const StudentPosts = () => {
                       <select
                         className="form-select"
                         value={newPost.subject}
-                        onChange={(e) => setNewPost({...newPost, subject: e.target.value})}
+                        onChange={(e) => setNewPost({ ...newPost, subject: e.target.value })}
                         required
                       >
                         <option value="">Select a Subject</option>
@@ -357,7 +484,7 @@ const StudentPosts = () => {
                       <select
                         className="form-select"
                         value={newPost.grade}
-                        onChange={(e) => setNewPost({...newPost, grade: e.target.value})}
+                        onChange={(e) => setNewPost({ ...newPost, grade: e.target.value })}
                         required
                       >
                         <option value="">Select Grade</option>
@@ -376,7 +503,7 @@ const StudentPosts = () => {
                         className="form-control"
                         rows="3"
                         value={newPost.description}
-                        onChange={(e) => setNewPost({...newPost, description: e.target.value})}
+                        onChange={(e) => setNewPost({ ...newPost, description: e.target.value })}
                         placeholder="Describe what you're looking for in a teacher..."
                         required
                       ></textarea>
@@ -389,7 +516,7 @@ const StudentPosts = () => {
                         type="text"
                         className="form-control"
                         value={newPost.budget}
-                        onChange={(e) => setNewPost({...newPost, budget: e.target.value})}
+                        onChange={(e) => setNewPost({ ...newPost, budget: e.target.value })}
                         placeholder="e.g., LKR 1500"
                         required
                       />
@@ -402,7 +529,7 @@ const StudentPosts = () => {
                         type="text"
                         className="form-control"
                         value={newPost.contact}
-                        onChange={(e) => setNewPost({...newPost, contact: e.target.value})}
+                        onChange={(e) => setNewPost({ ...newPost, contact: e.target.value })}
                         placeholder="Email or phone number"
                         required
                       />
@@ -430,9 +557,9 @@ const StudentPosts = () => {
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Send Tutoring Request</h5>
-                <button 
-                  type="button" 
-                  className="btn-close" 
+                <button
+                  type="button"
+                  className="btn-close"
                   onClick={() => setShowRequestModal(false)}
                 ></button>
               </div>
@@ -441,8 +568,8 @@ const StudentPosts = () => {
                   {selectedPost && (
                     <div className="mb-3">
                       <div className="alert alert-info">
-                        <strong>Student:</strong> {selectedPost.studentName}<br/>
-                        <strong>Subject:</strong> {selectedPost.subject}<br/>
+                        <strong>Student:</strong> {selectedPost.studentName}<br />
+                        <strong>Subject:</strong> {selectedPost.subject}<br />
                         <strong>Grade:</strong> {selectedPost.grade}
                       </div>
                     </div>
@@ -453,7 +580,7 @@ const StudentPosts = () => {
                       className="form-control"
                       rows="3"
                       value={requestData.message}
-                      onChange={(e) => setRequestData({...requestData, message: e.target.value})}
+                      onChange={(e) => setRequestData({ ...requestData, message: e.target.value })}
                       placeholder="Introduce yourself and explain how you can help..."
                       required
                     ></textarea>
@@ -464,7 +591,7 @@ const StudentPosts = () => {
                       type="number"
                       className="form-control"
                       value={requestData.budget}
-                      onChange={(e) => setRequestData({...requestData, budget: e.target.value})}
+                      onChange={(e) => setRequestData({ ...requestData, budget: e.target.value })}
                       placeholder="e.g., 1500"
                       step="0.01"
                     />
@@ -475,22 +602,22 @@ const StudentPosts = () => {
                       type="text"
                       className="form-control"
                       value={requestData.location}
-                      onChange={(e) => setRequestData({...requestData, location: e.target.value})}
+                      onChange={(e) => setRequestData({ ...requestData, location: e.target.value })}
                       placeholder="e.g., Online, Colombo, etc."
                     />
                   </div>
                 </div>
                 <div className="modal-footer">
-                  <button 
-                    type="button" 
-                    className="btn btn-secondary" 
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
                     onClick={() => setShowRequestModal(false)}
                     disabled={requestLoading}
                   >
                     Cancel
                   </button>
-                  <button 
-                    type="submit" 
+                  <button
+                    type="submit"
                     className="btn btn-primary"
                     disabled={requestLoading}
                   >
@@ -514,7 +641,14 @@ const StudentPosts = () => {
       <section className="posts-section">
         <div className="container">
           <div className="posts-list">
-            {filteredPosts.length > 0 ? (
+            {loading ? (
+              <div className="text-center py-5">
+                <div className="spinner-border text-primary" role="status" style={{ width: '3rem', height: '3rem' }}>
+                  <span className="visually-hidden">Loading posts...</span>
+                </div>
+                <h4 className="mt-3 text-muted">Loading posts...</h4>
+              </div>
+            ) : filteredPosts.length > 0 ? (
               filteredPosts.map((post) => (
                 <div key={post.id} className="post-card">
                   <div className="post-header">
@@ -539,7 +673,7 @@ const StudentPosts = () => {
                       <i className="bi bi-envelope"></i>
                       <span>{post.contact}</span>
                     </div>
-                    <button 
+                    <button
                       className="btn btn-outline-primary btn-sm"
                       onClick={() => handleContactStudent(post)}
                     >
@@ -553,7 +687,20 @@ const StudentPosts = () => {
               <div className="text-center py-5">
                 <i className="bi bi-search display-1 text-muted mb-3"></i>
                 <h3 className="text-muted">No posts found</h3>
-                <p className="text-muted">Try adjusting your search criteria or check back later.</p>
+                <p className="text-muted">
+                  {selectedSubject || searchQuery
+                    ? 'Try adjusting your search criteria.'
+                    : 'No student posts available yet.'}
+                </p>
+                {user?.role === 'student' && (
+                  <button
+                    className="btn btn-primary mt-3"
+                    onClick={() => setShowPostForm(true)}
+                  >
+                    <i className="bi bi-plus-circle me-2"></i>
+                    Create the First Post
+                  </button>
+                )}
               </div>
             )}
           </div>
