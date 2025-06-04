@@ -17,6 +17,11 @@ const UniversalProfile = () => {
   const [userRole, setUserRole] = useState(null); // 'teacher' or 'student' - role of the profile being viewed
   const [loggedInUserRole, setLoggedInUserRole] = useState(null); // role of the logged-in user
   const [updateLoading, setUpdateLoading] = useState(false);
+  
+  // Classes state for teachers
+  const [teacherClasses, setTeacherClasses] = useState([]);
+  const [classesLoading, setClassesLoading] = useState(false);
+  const [classesError, setClassesError] = useState(null);
 
   // Mock data for fallback
   const mockTeacher = {
@@ -424,6 +429,49 @@ const UniversalProfile = () => {
 
     fetchUserProfile();
   }, [profileId]); // Re-run when profileId changes
+
+  // Fetch teacher classes when viewing teacher profile
+  useEffect(() => {
+    if (user && userRole === 'teacher') {
+      fetchTeacherClasses();
+    }
+  }, [user, userRole]);
+
+  // Fetch teacher's classes
+  const fetchTeacherClasses = async () => {
+    if (!user?.id) return;
+    
+    setClassesLoading(true);
+    setClassesError(null);
+    
+    try {
+      console.log('Fetching classes for teacher ID:', user.id);
+      
+      const response = await fetch('http://145.223.21.62:5000/api/classes');
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch classes: ${response.status}`);
+      }
+      
+      const allClasses = await response.json();
+      console.log('All classes fetched:', allClasses);
+      
+      // Filter classes for this teacher
+      const teacherSpecificClasses = allClasses.filter(cls => 
+        cls.teacher_id === user.id || cls.teacher_id === parseInt(user.id)
+      );
+      
+      console.log('Teacher specific classes:', teacherSpecificClasses);
+      setTeacherClasses(teacherSpecificClasses);
+      
+    } catch (error) {
+      console.error('Error fetching teacher classes:', error);
+      setClassesError('Failed to load classes. Please try again.');
+      setTeacherClasses([]);
+    } finally {
+      setClassesLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -905,15 +953,29 @@ const UniversalProfile = () => {
               </button>
             </li>
             {userRole === 'teacher' && (
-              <li className="nav-item">
-                <button 
-                  className={`nav-link ${activeTab === 'education' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('education')}
-                >
-                  <i className="bi bi-mortarboard me-2"></i>
-                  Education
-                </button>
-              </li>
+              <>
+                <li className="nav-item">
+                  <button 
+                    className={`nav-link ${activeTab === 'education' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('education')}
+                  >
+                    <i className="bi bi-mortarboard me-2"></i>
+                    Education
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button 
+                    className={`nav-link ${activeTab === 'classes' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('classes')}
+                  >
+                    <i className="bi bi-book me-2"></i>
+                    My Classes
+                    {teacherClasses.length > 0 && (
+                      <span className="badge bg-primary ms-2">{teacherClasses.length}</span>
+                    )}
+                  </button>
+                </li>
+              </>
             )}
             <li className="nav-item">
               <button 
@@ -1160,6 +1222,143 @@ const UniversalProfile = () => {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'classes' && userRole === 'teacher' && (
+            <div>
+              <div className="d-flex justify-content-between align-items-center mb-4">
+                <h4 className="mb-0">My Classes</h4>
+                {isOwnProfile && (
+                  <button 
+                    className="btn btn-outline-primary btn-sm"
+                    onClick={fetchTeacherClasses}
+                    disabled={classesLoading}
+                  >
+                    <i className="bi bi-arrow-clockwise me-1"></i>
+                    {classesLoading ? 'Refreshing...' : 'Refresh'}
+                  </button>
+                )}
+              </div>
+
+              {classesError && (
+                <div className="alert alert-danger" role="alert">
+                  <i className="bi bi-exclamation-triangle me-2"></i>
+                  {classesError}
+                </div>
+              )}
+
+              {classesLoading ? (
+                <div className="text-center py-4">
+                  <div className="spinner-border text-primary" role="status">
+                    <span className="visually-hidden">Loading...</span>
+                  </div>
+                  <p className="mt-2">Loading classes...</p>
+                </div>
+              ) : (
+                <>
+                  {teacherClasses.length === 0 ? (
+                    <div className="text-center py-5">
+                      <i className="bi bi-book display-1 text-muted"></i>
+                      <h5 className="mt-3">No classes created yet</h5>
+                      <p className="text-muted">
+                        {isOwnProfile 
+                          ? "You haven't created any classes yet. Start by adding your first class!" 
+                          : "This teacher hasn't created any classes yet."
+                        }
+                      </p>
+                      {isOwnProfile && (
+                        <button className="btn btn-primary mt-3">
+                          <i className="bi bi-plus me-2"></i>
+                          Create Your First Class
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="row">
+                      {teacherClasses.map((cls) => (
+                        <div key={cls.id} className="col-md-6 col-lg-4 mb-4">
+                          <div className="card h-100 class-card">
+                            <div className="card-body d-flex flex-column">
+                              <div className="class-header mb-3">
+                                <h6 className="card-title mb-2">{cls.title}</h6>
+                                <div className="class-badges">
+                                  <span className="badge bg-primary me-1">{cls.subject_name}</span>
+                                  {cls.is_online ? (
+                                    <span className="badge bg-success">Online</span>
+                                  ) : (
+                                    <span className="badge bg-secondary">In-Person</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="class-content flex-grow-1 mb-3">
+                                <p className="card-text text-muted small">
+                                  {cls.description ? 
+                                    (cls.description.length > 100 ? 
+                                      cls.description.substring(0, 100) + '...' : 
+                                      cls.description
+                                    ) : 
+                                    'No description available.'
+                                  }
+                                </p>
+                              </div>
+
+                              <div className="class-details mb-3">
+                                <div className="detail-item">
+                                  <i className="bi bi-currency-dollar text-success me-1"></i>
+                                  <span className="fw-bold text-success">${parseFloat(cls.price || 0).toFixed(2)}</span>
+                                  <small className="text-muted ms-1">per hour</small>
+                                </div>
+                                
+                                <div className="detail-item mt-2">
+                                  <i className="bi bi-geo-alt text-muted me-1"></i>
+                                  <small className="text-muted">{cls.location || 'Location not specified'}</small>
+                                </div>
+                                
+                                <div className="detail-item mt-2">
+                                  <i className="bi bi-calendar text-muted me-1"></i>
+                                  <small className="text-muted">
+                                    Created: {new Date(cls.created_at).toLocaleDateString()}
+                                  </small>
+                                </div>
+                              </div>
+
+                              {isOwnProfile && (
+                                <div className="class-actions mt-auto">
+                                  <div className="btn-group w-100">
+                                    <button className="btn btn-outline-primary btn-sm">
+                                      <i className="bi bi-pencil me-1"></i>
+                                      Edit
+                                    </button>
+                                    <button className="btn btn-outline-info btn-sm">
+                                      <i className="bi bi-eye me-1"></i>
+                                      View
+                                    </button>
+                                    <button className="btn btn-outline-danger btn-sm">
+                                      <i className="bi bi-trash me-1"></i>
+                                      Delete
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {isOwnProfile && teacherClasses.length > 0 && (
+                    <div className="text-center mt-4">
+                      <button className="btn btn-primary">
+                        <i className="bi bi-plus me-2"></i>
+                        Add New Class
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
 
@@ -1421,6 +1620,56 @@ const UniversalProfile = () => {
         .spinner-border {
           width: 3rem;
           height: 3rem;
+        }
+
+        .class-card {
+          transition: all 0.3s ease;
+          border: 1px solid #e2e8f0;
+        }
+
+        .class-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .class-header .card-title {
+          font-weight: 600;
+          color: #1e293b;
+          line-height: 1.3;
+        }
+
+        .class-badges {
+          display: flex;
+          gap: 0.5rem;
+          flex-wrap: wrap;
+        }
+
+        .class-content {
+          min-height: 60px;
+        }
+
+        .class-details {
+          background: #f8fafc;
+          padding: 0.75rem;
+          border-radius: 0.5rem;
+        }
+
+        .detail-item {
+          display: flex;
+          align-items: center;
+        }
+
+        .detail-item i {
+          font-size: 0.875rem;
+        }
+
+        .class-actions .btn-group {
+          box-shadow: none;
+        }
+
+        .class-actions .btn-sm {
+          padding: 0.375rem 0.5rem;
+          font-size: 0.75rem;
         }
 
         @media (max-width: 768px) {

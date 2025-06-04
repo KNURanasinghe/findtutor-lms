@@ -382,7 +382,7 @@ const StudentDashboard = () => {
                         <p className="text-muted">You haven't sent any requests to teachers yet.</p>
                         <button 
                           className="btn btn-primary"
-                          onClick={() => navigate('/teachers')}
+                          onClick={() => navigate('/find-teachers')}
                         >
                           <i className="bi bi-search me-2"></i>
                           Find Teachers
@@ -410,12 +410,12 @@ const StudentDashboard = () => {
                                 <td>
                                   <div className="d-flex align-items-center">
                                     <img
-                                      src={request.teacher_profile_picture || 'https://via.placeholder.com/32'}
+                                      src={request.teacher_profile_picture || 'https://via.placeholder.com/100'}
                                       alt="Teacher"
                                       className="rounded-circle me-2"
                                       style={{ width: '32px', height: '32px', objectFit: 'cover' }}
                                       onError={(e) => {
-                                        e.target.src = 'https://via.placeholder.com/32';
+                                        e.target.src = 'https://via.placeholder.com/100';
                                       }}
                                     />
                                     <div>

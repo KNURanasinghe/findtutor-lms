@@ -121,7 +121,7 @@ const Header = () => {
                     onClick={() => setShowDropdown(!showDropdown)}
                   >
                     <img
-                      src={user.profile_picture || 'https://via.placeholder.com/32'}
+                      src={user.profile_picture || 'https://via.placeholder.com/100'}
                       alt="Profile"
                       className="rounded-circle me-2"
                       style={{ width: '32px', height: '32px', objectFit: 'cover' }}
