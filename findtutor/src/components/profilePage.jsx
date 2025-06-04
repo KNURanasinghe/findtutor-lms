@@ -2,7 +2,25 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
-import RequestTeacher from './request-teacher'; // Import the RequestTeacher component
+import RequestTeacher from './request-teacher';// Import the RequestTeacher component
+
+
+const getInitials = (name) => {
+  if (!name) return 'U';
+  const words = name.trim().split(' ');
+  if (words.length === 1) return words[0].charAt(0).toUpperCase();
+  return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+};
+
+const getAvatarColor = (name) => {
+  if (!name) return '#6B7280';
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'];
+  return colors[Math.abs(hash) % colors.length];
+};
 
 const UniversalProfile = () => {
   const { profileId } = useParams(); // Get profile ID from URL (can be teacher or student)
@@ -17,13 +35,13 @@ const UniversalProfile = () => {
   const [userRole, setUserRole] = useState(null); // 'teacher' or 'student' - role of the profile being viewed
   const [loggedInUserRole, setLoggedInUserRole] = useState(null); // role of the logged-in user
   const [updateLoading, setUpdateLoading] = useState(false);
-  
+
   // Image upload states
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [imageUploading, setImageUploading] = useState(false);
   const fileInputRef = useRef(null);
-  
+
   // Classes state for teachers
   const [teacherClasses, setTeacherClasses] = useState([]);
   const [classesLoading, setClassesLoading] = useState(false);
@@ -83,14 +101,14 @@ const UniversalProfile = () => {
       }
 
       setSelectedImage(file);
-      
+
       // Create preview
       const reader = new FileReader();
       reader.onload = (e) => {
         setImagePreview(e.target.result);
       };
       reader.readAsDataURL(file);
-      
+
       // Clear any previous errors
       setError('');
     }
@@ -104,14 +122,14 @@ const UniversalProfile = () => {
     try {
       const formData = new FormData();
       formData.append('profileImage', selectedImage);
-      
+
       // Get user ID from localStorage for the filename
       const userData = localStorage.getItem('user');
       if (userData) {
         const parsedUser = JSON.parse(userData);
         const userId = parsedUser.user_id || parsedUser.id;
         formData.append('userId', userId);
-        console.log('Uploading image with form data:',userId );
+        console.log('Uploading image with form data:', userId);
       }
 
       const response = await fetch('http://145.223.21.62:5000/api/users/upload-profile-image', {
@@ -172,12 +190,12 @@ const UniversalProfile = () => {
       try {
         setLoading(true);
         setError(null);
-        
+
         // Get logged-in user data from localStorage
         const userData = localStorage.getItem('user');
         let loggedInUserId = null;
         let loggedInUserRoleFromStorage = null;
-        
+
         if (userData) {
           try {
             const parsedUser = JSON.parse(userData);
@@ -189,32 +207,32 @@ const UniversalProfile = () => {
             console.error('Error parsing logged-in user data:', parseError);
           }
         }
-        
+
         let currentProfile;
         let profileRole = loggedInUserRoleFromStorage; // Default to logged-in user's role
-        
+
         if (profileId) {
           // Viewing a specific profile from URL parameter
           console.log('=== DEBUGGING PROFILE FETCH ===');
           console.log('ProfileId from URL:', profileId, typeof profileId);
-          
+
           // Convert profileId to number for comparison
           const numericProfileId = parseInt(profileId, 10);
           console.log('Numeric ProfileId:', numericProfileId);
-          
+
           // Try teachers first
           try {
             console.log('Fetching teachers from API...');
             const teachersResponse = await fetch('http://145.223.21.62:5000/api/teachers');
-            
+
             if (teachersResponse.ok) {
               const teachers = await teachersResponse.json();
-              console.log('All teachers from API:', teachers.map(t => ({ 
-                teacher_id: t.teacher_id, 
+              console.log('All teachers from API:', teachers.map(t => ({
+                teacher_id: t.teacher_id,
                 name: t.name,
-                user_id: t.user_id 
+                user_id: t.user_id
               })));
-              
+
               // Try multiple matching strategies
               currentProfile = teachers.find(teacher => {
                 const matchById = teacher.teacher_id === numericProfileId || teacher.teacher_id === profileId;
@@ -222,13 +240,13 @@ const UniversalProfile = () => {
                 console.log(`Checking teacher ${teacher.name}: teacher_id=${teacher.teacher_id}, matches=${matchById || matchByString}`);
                 return matchById || matchByString;
               });
-              
+
               console.log('Teacher search result:', currentProfile);
-              
+
               if (currentProfile) {
                 profileRole = 'teacher';
                 console.log('Found teacher profile:', currentProfile.name);
-                
+
                 // Check if this is the logged-in user's own profile
                 if (loggedInUserId && loggedInUserRoleFromStorage === 'teacher') {
                   const loggedInTeacher = teachers.find(teacher => {
@@ -248,34 +266,34 @@ const UniversalProfile = () => {
           } catch (teacherError) {
             console.error('Error fetching teachers:', teacherError);
           }
-          
+
           // If not found in teachers, try students
           if (!currentProfile) {
             try {
               console.log('Teacher not found, trying students...');
               const studentsResponse = await fetch('http://145.223.21.62:5000/api/students');
-              
+
               if (studentsResponse.ok) {
                 const students = await studentsResponse.json();
-                console.log('All students from API:', students.map(s => ({ 
-                  student_id: s.student_id, 
+                console.log('All students from API:', students.map(s => ({
+                  student_id: s.student_id,
                   name: s.name,
-                  user_id: s.user_id 
+                  user_id: s.user_id
                 })));
-                
+
                 currentProfile = students.find(student => {
                   const matchById = student.student_id === numericProfileId || student.student_id === profileId;
                   const matchByString = String(student.student_id) === String(profileId);
                   console.log(`Checking student ${student.name}: student_id=${student.student_id}, matches=${matchById || matchByString}`);
                   return matchById || matchByString;
                 });
-                
+
                 console.log('Student search result:', currentProfile);
-                
+
                 if (currentProfile) {
                   profileRole = 'student';
                   console.log('Found student profile:', currentProfile.name);
-                  
+
                   // Check if this is the logged-in user's own profile
                   if (loggedInUserId && loggedInUserRoleFromStorage === 'student') {
                     const loggedInStudent = students.find(student => {
@@ -296,7 +314,7 @@ const UniversalProfile = () => {
               console.error('Error fetching students:', studentError);
             }
           }
-          
+
           if (!currentProfile) {
             console.error('=== PROFILE NOT FOUND ===');
             console.error('Searched for profileId:', profileId);
@@ -306,7 +324,7 @@ const UniversalProfile = () => {
         } else {
           // No specific profile ID in URL - show logged-in user's profile
           console.log('No profileId in URL, showing logged-in user profile');
-          
+
           if (!loggedInUserId || !loggedInUserRoleFromStorage) {
             console.warn('No user data found in localStorage and no profile ID in URL');
             setUser(loggedInUserRoleFromStorage === 'student' ? mockStudent : mockTeacher);
@@ -315,19 +333,19 @@ const UniversalProfile = () => {
             setLoading(false);
             return;
           }
-          
+
           if (loggedInUserRoleFromStorage === 'teacher') {
             // Fetch teachers and find logged-in user's profile
             const teachersResponse = await fetch('http://145.223.21.62:5000/api/teachers');
             if (!teachersResponse.ok) {
               throw new Error(`Failed to fetch teachers: ${teachersResponse.status}`);
             }
-            
+
             const teachers = await teachersResponse.json();
-            currentProfile = teachers.find(teacher => 
+            currentProfile = teachers.find(teacher =>
               teacher.user_id === parseInt(loggedInUserId) || teacher.user_id === loggedInUserId
             );
-            
+
             if (!currentProfile) {
               // Create a basic teacher profile for new teachers
               const basicProfile = {
@@ -353,12 +371,12 @@ const UniversalProfile = () => {
             if (!studentsResponse.ok) {
               throw new Error(`Failed to fetch students: ${studentsResponse.status}`);
             }
-            
+
             const students = await studentsResponse.json();
-            currentProfile = students.find(student => 
+            currentProfile = students.find(student =>
               student.user_id === parseInt(loggedInUserId) || student.user_id === loggedInUserId
             );
-            
+
             if (!currentProfile) {
               // Create a basic student profile for new students
               const basicProfile = {
@@ -374,25 +392,25 @@ const UniversalProfile = () => {
             }
             profileRole = 'student';
           }
-          
+
           setIsOwnProfile(true); // Always own profile when no URL param
         }
-        
+
         console.log('=== FINAL RESULTS ===');
         console.log('Found profile:', currentProfile?.name);
         console.log('Profile role:', profileRole);
         console.log('Is own profile:', isOwnProfile);
-        
+
         // Map API response to component structure based on role
         let mappedUser;
-        
+
         if (profileRole === 'teacher') {
           mappedUser = {
             id: currentProfile.teacher_id,
             user_id: currentProfile.user_id,
             name: currentProfile.name,
-            email: currentProfile.email || '', 
-            subjects: currentProfile.subjects || 'General', 
+            email: currentProfile.email || '',
+            subjects: currentProfile.subjects || 'General',
             experience: `${currentProfile.years_experience || 0} years`,
             qualifications: currentProfile.education || '',
             hourlyRate: `LKR ${currentProfile.hourly_rate || 0}`,
@@ -430,7 +448,7 @@ const UniversalProfile = () => {
             role: 'student'
           };
         }
-        
+
         // If viewing own profile and logged in, get email from localStorage
         if (isOwnProfile && userData) {
           try {
@@ -440,9 +458,9 @@ const UniversalProfile = () => {
             console.error('Error parsing user data for email:', e);
           }
         }
-        
+
         console.log('Mapped user:', mappedUser);
-        
+
         setUser(mappedUser);
         setEditedUser(mappedUser);
         setUserRole(profileRole); // Set the role of the profile being viewed
@@ -451,13 +469,13 @@ const UniversalProfile = () => {
         console.log('Profile ID that failed:', profileId);
         console.log('Error details:', err.message);
         setError(err.message || 'Failed to load profile');
-        
+
         // DO NOT use fallback for viewing other people's profiles
         if (profileId) {
           console.log('Not using fallback because we are viewing a specific profile ID:', profileId);
           return; // Don't show fallback for other people's profiles
         }
-        
+
         console.log('Using fallback only because no profileId was provided (viewing own profile)');
         // Fallback only if viewing own profile
         if (!profileId) {
@@ -506,7 +524,7 @@ const UniversalProfile = () => {
                 is_subscribed: false,
                 role: 'teacher'
               };
-              
+
               setUser(basicProfile);
               setEditedUser(basicProfile);
               setIsOwnProfile(true);
@@ -547,30 +565,30 @@ const UniversalProfile = () => {
   // Fetch teacher's classes
   const fetchTeacherClasses = async () => {
     if (!user?.id) return;
-    
+
     setClassesLoading(true);
     setClassesError(null);
-    
+
     try {
       console.log('Fetching classes for teacher ID:', user.id);
-      
+
       const response = await fetch('http://145.223.21.62:5000/api/classes');
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch classes: ${response.status}`);
       }
-      
+
       const allClasses = await response.json();
       console.log('All classes fetched:', allClasses);
-      
+
       // Filter classes for this teacher
-      const teacherSpecificClasses = allClasses.filter(cls => 
+      const teacherSpecificClasses = allClasses.filter(cls =>
         cls.teacher_id === user.id || cls.teacher_id === parseInt(user.id)
       );
-      
+
       console.log('Teacher specific classes:', teacherSpecificClasses);
       setTeacherClasses(teacherSpecificClasses);
-      
+
     } catch (error) {
       console.error('Error fetching teacher classes:', error);
       setClassesError('Failed to load classes. Please try again.');
@@ -602,22 +620,22 @@ const UniversalProfile = () => {
 
       setUpdateLoading(true);
       setError(null);
-      
+
       const userData = localStorage.getItem('user');
       if (!userData) {
         throw new Error('No user data found. Please log in again.');
       }
-      
+
       const parsedUser = JSON.parse(userData);
       const userId = parsedUser.user_id || parsedUser.id;
-      
+
       if (!userId) {
         throw new Error('No user ID found. Cannot save profile.');
       }
-      
+
       console.log('User ID from localStorage:', userId);
       console.log('User role:', userRole);
-      
+
       // Handle image upload first if there's a new image
       let imageUrl = editedUser.profilePicture;
       if (selectedImage) {
@@ -632,20 +650,20 @@ const UniversalProfile = () => {
           throw new Error('Failed to upload image');
         }
       }
-      
+
       let profileId, apiData, apiUrl;
-      
+
       if (userRole === 'teacher') {
         // Get the teacher ID using the user ID
         profileId = await getTeacherIdFromUserId(userId);
         console.log('Resolved teacher ID:', profileId);
-        
+
         // Extract years from experience string (e.g., "5 years" -> 5)
         const experienceYears = parseInt(editedUser.experience?.replace(/\D/g, '') || '0');
-        
+
         // Extract rate from hourly rate string (e.g., "LKR 2500" -> 2500)
         const hourlyRateValue = parseFloat(editedUser.hourlyRate?.replace(/[^\d.]/g, '') || '0');
-        
+
         // Prepare data for teacher API
         apiData = {
           bio: editedUser.bio || '',
@@ -657,28 +675,28 @@ const UniversalProfile = () => {
           lat: editedUser.lat || 0,
           lng: editedUser.lng || 0
         };
-        
+
         apiUrl = `http://145.223.21.62:5000/api/teachers/${profileId}`;
       } else if (userRole === 'student') {
         // Get the student ID using the user ID
         profileId = await getStudentIdFromUserId(userId);
         console.log('Resolved student ID:', profileId);
-        
+
         // Prepare data for student API
         apiData = {
           bio: editedUser.bio || '',
           education_level: editedUser.educationLevel || '',
           location: editedUser.location || ''
         };
-        
+
         apiUrl = `http://145.223.21.62:5000/api/students/${profileId}`;
       } else {
         throw new Error('Invalid user role. Cannot save profile.');
       }
-      
+
       console.log('Updating profile with data:', apiData);
       console.log('Using API URL:', apiUrl);
-      
+
       // Make API call to update profile
       const response = await fetch(apiUrl, {
         method: 'PUT',
@@ -687,35 +705,35 @@ const UniversalProfile = () => {
         },
         body: JSON.stringify(apiData)
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || `Failed to update profile: ${response.status}`);
       }
-      
+
       const updatedProfile = await response.json();
       console.log('Profile updated successfully:', updatedProfile);
-      
+
       // Update local state with new data including the new image URL
       const updatedUser = { ...editedUser, profilePicture: imageUrl };
       setUser(updatedUser);
       setEditedUser(updatedUser);
       setIsEditing(false);
-      
+
       // Reset image states
       setSelectedImage(null);
       setImagePreview(null);
-      
+
       // Show success message
       setSuccessMessage('Profile updated successfully!');
-      
+
       // Clear success message after 3 seconds
       setTimeout(() => {
         setSuccessMessage('');
       }, 3000);
-      
+
       console.log('Profile updated successfully!');
-      
+
     } catch (err) {
       console.error('Error saving profile:', err);
       setError(err.message || 'Failed to save profile. Please try again.');
@@ -737,7 +755,7 @@ const UniversalProfile = () => {
       ...prev,
       [field]: value
     }));
-    
+
     // Clear any previous errors
     if (error && !error.includes('Access denied')) {
       setError('');
@@ -777,40 +795,40 @@ const UniversalProfile = () => {
   // Helper function to get teacher ID from user ID
   const getTeacherIdFromUserId = async (userId) => {
     const response = await fetch('http://145.223.21.62:5000/api/teachers');
-    
+
     if (!response.ok) {
       throw new Error(`Failed to fetch teachers: ${response.status}`);
     }
-    
+
     const teachers = await response.json();
-    const teacherRecord = teachers.find(teacher => 
+    const teacherRecord = teachers.find(teacher =>
       teacher.user_id === parseInt(userId) || teacher.user_id === userId
     );
-    
+
     if (!teacherRecord) {
       throw new Error('Teacher record not found. You may need to complete your teacher registration first.');
     }
-    
+
     return teacherRecord.teacher_id;
   };
 
   // Helper function to get student ID from user ID
   const getStudentIdFromUserId = async (userId) => {
     const response = await fetch('http://145.223.21.62:5000/api/students');
-    
+
     if (!response.ok) {
       throw new Error(`Failed to fetch students: ${response.status}`);
     }
-    
+
     const students = await response.json();
-    const studentRecord = students.find(student => 
+    const studentRecord = students.find(student =>
       student.user_id === parseInt(userId) || student.user_id === userId
     );
-    
+
     if (!studentRecord) {
       throw new Error('Student record not found. You may need to complete your student registration first.');
     }
-    
+
     return studentRecord.student_id;
   };
 
@@ -838,7 +856,7 @@ const UniversalProfile = () => {
               <i className="bi bi-shield-exclamation me-2"></i>
               {error}
             </div>
-            <button 
+            <button
               className="btn btn-primary"
               onClick={() => window.location.href = `/login/${loggedInUserRole || 'teacher'}`}
             >
@@ -864,8 +882,8 @@ const UniversalProfile = () => {
               {profileId ? 'The requested profile could not be found.' : "Don't worry! We're showing your basic profile."}
             </p>
             <div className="btn-group">
-              <button 
-                className="btn btn-primary" 
+              <button
+                className="btn btn-primary"
                 onClick={() => {
                   setError(null);
                   window.location.reload();
@@ -875,8 +893,8 @@ const UniversalProfile = () => {
                 Try Again
               </button>
               {profileId && (
-                <button 
-                  className="btn btn-outline-secondary" 
+                <button
+                  className="btn btn-outline-secondary"
                   onClick={() => window.history.back()}
                 >
                   <i className="bi bi-arrow-left me-2"></i>
@@ -902,7 +920,7 @@ const UniversalProfile = () => {
               <i className="bi bi-person-x me-2"></i>
               No profile data available
             </div>
-            <button 
+            <button
               className="btn btn-primary"
               onClick={() => {
                 const fallback = loggedInUserRole === 'student' ? mockStudent : mockTeacher;
@@ -929,21 +947,41 @@ const UniversalProfile = () => {
           <div className="row align-items-center">
             <div className="col-auto">
               <div className="profile-avatar">
-                <img 
-                  src={imagePreview || currentUser?.profilePicture} 
-                  alt={currentUser?.name}
-                  onError={(e) => {
-                    const defaultImg = userRole === 'student' 
-                      ? 'https://randomuser.me/api/portraits/men/1.jpg'
-                      : 'https://randomuser.me/api/portraits/women/1.jpg';
-                    e.target.src = defaultImg;
-                  }}
-                />
-                
+                {(imagePreview || (currentUser?.profilePicture && !currentUser.profilePicture.includes('randomuser.me'))) ? (
+                  <img
+                    src={imagePreview || currentUser?.profilePicture}
+                    alt={currentUser?.name}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      const avatarDiv = e.target.parentElement;
+                      avatarDiv.style.backgroundColor = getAvatarColor(currentUser?.name);
+                      avatarDiv.style.display = 'flex';
+                      avatarDiv.style.alignItems = 'center';
+                      avatarDiv.style.justifyContent = 'center';
+                      avatarDiv.innerHTML = `<span style="color: white; font-size: 40px; font-weight: 600;">${getInitials(currentUser?.name)}</span>` + avatarDiv.innerHTML.replace(/<img[^>]*>/, '');
+                    }}
+                  />
+                ) : (
+                  <div style={{
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: getAvatarColor(currentUser?.name),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontSize: '40px',
+                    fontWeight: '600',
+                    borderRadius: '50%'
+                  }}>
+                    {getInitials(currentUser?.name)}
+                  </div>
+                )}
+
                 {/* Image upload overlay for editing mode */}
                 {isEditing && isOwnProfile && (
                   <div className="image-upload-overlay">
-                    <button 
+                    <button
                       className="btn btn-primary btn-sm upload-btn"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={imageUploading}
@@ -956,9 +994,9 @@ const UniversalProfile = () => {
                         <i className="bi bi-camera"></i>
                       )}
                     </button>
-                    
+
                     {selectedImage && (
-                      <button 
+                      <button
                         className="btn btn-danger btn-sm remove-btn"
                         onClick={removeImageSelection}
                         disabled={imageUploading}
@@ -966,7 +1004,7 @@ const UniversalProfile = () => {
                         <i className="bi bi-x"></i>
                       </button>
                     )}
-                    
+
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -976,7 +1014,7 @@ const UniversalProfile = () => {
                     />
                   </div>
                 )}
-                
+
                 {userRole === 'teacher' && (
                   <div className="rating-badge">
                     <i className="bi bi-star-fill"></i>
@@ -1039,7 +1077,7 @@ const UniversalProfile = () => {
               {isOwnProfile && (
                 <>
                   <div className="btn-group me-3">
-                    <button 
+                    <button
                       className="btn btn-outline-danger btn-sm"
                       onClick={handleLogout}
                     >
@@ -1054,8 +1092,8 @@ const UniversalProfile = () => {
                     </button>
                   ) : (
                     <div className="btn-group">
-                      <button 
-                        className="btn btn-success" 
+                      <button
+                        className="btn btn-success"
                         onClick={handleSave}
                         disabled={updateLoading || imageUploading}
                       >
@@ -1071,8 +1109,8 @@ const UniversalProfile = () => {
                           </>
                         )}
                       </button>
-                      <button 
-                        className="btn btn-outline-secondary" 
+                      <button
+                        className="btn btn-outline-secondary"
                         onClick={handleCancel}
                         disabled={updateLoading || imageUploading}
                       >
@@ -1116,7 +1154,7 @@ const UniversalProfile = () => {
         <div className="container-fluid">
           <ul className="nav nav-tabs">
             <li className="nav-item">
-              <button 
+              <button
                 className={`nav-link ${activeTab === 'profile' ? 'active' : ''}`}
                 onClick={() => setActiveTab('profile')}
               >
@@ -1127,7 +1165,7 @@ const UniversalProfile = () => {
             {userRole === 'teacher' && (
               <>
                 <li className="nav-item">
-                  <button 
+                  <button
                     className={`nav-link ${activeTab === 'education' ? 'active' : ''}`}
                     onClick={() => setActiveTab('education')}
                   >
@@ -1136,7 +1174,7 @@ const UniversalProfile = () => {
                   </button>
                 </li>
                 <li className="nav-item">
-                  <button 
+                  <button
                     className={`nav-link ${activeTab === 'classes' ? 'active' : ''}`}
                     onClick={() => setActiveTab('classes')}
                   >
@@ -1150,7 +1188,7 @@ const UniversalProfile = () => {
               </>
             )}
             <li className="nav-item">
-              <button 
+              <button
                 className={`nav-link ${activeTab === 'achievements' ? 'active' : ''}`}
                 onClick={() => setActiveTab('achievements')}
               >
@@ -1170,22 +1208,22 @@ const UniversalProfile = () => {
             <div className="alert alert-success alert-dismissible fade show" role="alert">
               <i className="bi bi-check-circle-fill me-2"></i>
               {successMessage}
-              <button 
-                type="button" 
-                className="btn-close" 
+              <button
+                type="button"
+                className="btn-close"
                 onClick={() => setSuccessMessage('')}
               ></button>
             </div>
           )}
-          
+
           {/* Error Message */}
           {error && !error.includes('Access denied') && (
             <div className="alert alert-danger alert-dismissible fade show" role="alert">
               <i className="bi bi-exclamation-triangle-fill me-2"></i>
               {error}
-              <button 
-                type="button" 
-                className="btn-close" 
+              <button
+                type="button"
+                className="btn-close"
                 onClick={() => setError('')}
               ></button>
             </div>
@@ -1197,9 +1235,9 @@ const UniversalProfile = () => {
               <i className="bi bi-image me-2"></i>
               New profile picture selected: {selectedImage.name}
               <small className="d-block mt-1">Save your profile to upload the new image.</small>
-              <button 
-                type="button" 
-                className="btn-close" 
+              <button
+                type="button"
+                className="btn-close"
                 onClick={removeImageSelection}
               ></button>
             </div>
@@ -1213,10 +1251,10 @@ const UniversalProfile = () => {
                   <div className="mb-3">
                     <label className="form-label">Full Name</label>
                     {isEditing && isOwnProfile ? (
-                      <input 
-                        type="text" 
-                        className="form-control" 
-                        value={currentUser?.name || ''} 
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={currentUser?.name || ''}
                         onChange={(e) => handleInputChange('name', e.target.value)}
                       />
                     ) : (
@@ -1226,10 +1264,10 @@ const UniversalProfile = () => {
                   <div className="mb-3">
                     <label className="form-label">Email</label>
                     {isEditing && isOwnProfile ? (
-                      <input 
-                        type="email" 
-                        className="form-control" 
-                        value={currentUser?.email || ''} 
+                      <input
+                        type="email"
+                        className="form-control"
+                        value={currentUser?.email || ''}
                         onChange={(e) => handleInputChange('email', e.target.value)}
                       />
                     ) : (
@@ -1239,10 +1277,10 @@ const UniversalProfile = () => {
                   <div className="mb-3">
                     <label className="form-label">Location</label>
                     {isEditing && isOwnProfile ? (
-                      <input 
-                        type="text" 
-                        className="form-control" 
-                        value={currentUser?.location || ''} 
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={currentUser?.location || ''}
                         onChange={(e) => handleInputChange('location', e.target.value)}
                       />
                     ) : (
@@ -1253,9 +1291,9 @@ const UniversalProfile = () => {
                     <div className="mb-3">
                       <label className="form-label">Education Level</label>
                       {isEditing && isOwnProfile ? (
-                        <select 
-                          className="form-control" 
-                          value={currentUser?.educationLevel || ''} 
+                        <select
+                          className="form-control"
+                          value={currentUser?.educationLevel || ''}
                           onChange={(e) => handleInputChange('educationLevel', e.target.value)}
                         >
                           <option value="">Select Education Level</option>
@@ -1274,10 +1312,10 @@ const UniversalProfile = () => {
                     <div className="mb-3">
                       <label className="form-label">Subjects</label>
                       {isEditing && isOwnProfile ? (
-                        <input 
-                          type="text" 
-                          className="form-control" 
-                          value={currentUser?.subjects || ''} 
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={currentUser?.subjects || ''}
                           onChange={(e) => handleInputChange('subjects', e.target.value)}
                           placeholder="e.g., Mathematics, Physics, Chemistry"
                         />
@@ -1294,10 +1332,10 @@ const UniversalProfile = () => {
                         <label className="form-label">Experience</label>
                         {isEditing && isOwnProfile ? (
                           <>
-                            <input 
-                              type="text" 
-                              className="form-control" 
-                              value={currentUser?.experience || ''} 
+                            <input
+                              type="text"
+                              className="form-control"
+                              value={currentUser?.experience || ''}
                               onChange={(e) => handleInputChange('experience', e.target.value)}
                               placeholder="e.g., 5 years"
                             />
@@ -1311,10 +1349,10 @@ const UniversalProfile = () => {
                         <label className="form-label">Hourly Rate</label>
                         {isEditing && isOwnProfile ? (
                           <>
-                            <input 
-                              type="text" 
-                              className="form-control" 
-                              value={currentUser?.hourlyRate || ''} 
+                            <input
+                              type="text"
+                              className="form-control"
+                              value={currentUser?.hourlyRate || ''}
                               onChange={(e) => handleInputChange('hourlyRate', e.target.value)}
                               placeholder="e.g., LKR 2500"
                             />
@@ -1327,10 +1365,10 @@ const UniversalProfile = () => {
                       <div className="mb-3">
                         <label className="form-label">Availability</label>
                         {isEditing && isOwnProfile ? (
-                          <input 
-                            type="text" 
-                            className="form-control" 
-                            value={currentUser?.availability || ''} 
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={currentUser?.availability || ''}
                             onChange={(e) => handleInputChange('availability', e.target.value)}
                           />
                         ) : (
@@ -1340,10 +1378,10 @@ const UniversalProfile = () => {
                       <div className="mb-3">
                         <label className="form-label">Preferred Medium</label>
                         {isEditing && isOwnProfile ? (
-                          <input 
-                            type="text" 
-                            className="form-control" 
-                            value={currentUser?.preferredMedium || ''} 
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={currentUser?.preferredMedium || ''}
                             onChange={(e) => handleInputChange('preferredMedium', e.target.value)}
                           />
                         ) : (
@@ -1355,13 +1393,13 @@ const UniversalProfile = () => {
                   <div className="mb-3">
                     <label className="form-label">Bio</label>
                     {isEditing && isOwnProfile ? (
-                      <textarea 
-                        className="form-control" 
-                        rows="4" 
-                        value={currentUser?.bio || ''} 
+                      <textarea
+                        className="form-control"
+                        rows="4"
+                        value={currentUser?.bio || ''}
                         onChange={(e) => handleInputChange('bio', e.target.value)}
-                        placeholder={userRole === 'teacher' 
-                          ? "Tell us about yourself and your teaching approach..." 
+                        placeholder={userRole === 'teacher'
+                          ? "Tell us about yourself and your teaching approach..."
                           : "Tell us about yourself and your learning goals..."
                         }
                       />
@@ -1382,10 +1420,10 @@ const UniversalProfile = () => {
                   <div className="mb-3">
                     <label className="form-label">Education</label>
                     {isEditing && isOwnProfile ? (
-                      <input 
-                        type="text" 
-                        className="form-control" 
-                        value={currentUser?.education || ''} 
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={currentUser?.education || ''}
                         onChange={(e) => handleInputChange('education', e.target.value)}
                       />
                     ) : (
@@ -1395,10 +1433,10 @@ const UniversalProfile = () => {
                   <div className="mb-3">
                     <label className="form-label">Qualifications</label>
                     {isEditing && isOwnProfile ? (
-                      <textarea 
-                        className="form-control" 
-                        rows="4" 
-                        value={currentUser?.qualifications || ''} 
+                      <textarea
+                        className="form-control"
+                        rows="4"
+                        value={currentUser?.qualifications || ''}
                         onChange={(e) => handleInputChange('qualifications', e.target.value)}
                         placeholder="List your degrees, certifications, and qualifications..."
                       />
@@ -1416,7 +1454,7 @@ const UniversalProfile = () => {
               <div className="d-flex justify-content-between align-items-center mb-4">
                 <h4 className="mb-0">My Classes</h4>
                 {isOwnProfile && (
-                  <button 
+                  <button
                     className="btn btn-outline-primary btn-sm"
                     onClick={fetchTeacherClasses}
                     disabled={classesLoading}
@@ -1448,8 +1486,8 @@ const UniversalProfile = () => {
                       <i className="bi bi-book display-1 text-muted"></i>
                       <h5 className="mt-3">No classes created yet</h5>
                       <p className="text-muted">
-                        {isOwnProfile 
-                          ? "You haven't created any classes yet. Start by adding your first class!" 
+                        {isOwnProfile
+                          ? "You haven't created any classes yet. Start by adding your first class!"
                           : "This teacher hasn't created any classes yet."
                         }
                       </p>
@@ -1480,11 +1518,11 @@ const UniversalProfile = () => {
 
                               <div className="class-content flex-grow-1 mb-3">
                                 <p className="card-text text-muted small">
-                                  {cls.description ? 
-                                    (cls.description.length > 100 ? 
-                                      cls.description.substring(0, 100) + '...' : 
+                                  {cls.description ?
+                                    (cls.description.length > 100 ?
+                                      cls.description.substring(0, 100) + '...' :
                                       cls.description
-                                    ) : 
+                                    ) :
                                     'No description available.'
                                   }
                                 </p>
@@ -1496,12 +1534,12 @@ const UniversalProfile = () => {
                                   <span className="fw-bold text-success">${parseFloat(cls.price || 0).toFixed(2)}</span>
                                   <small className="text-muted ms-1">per hour</small>
                                 </div>
-                                
+
                                 <div className="detail-item mt-2">
                                   <i className="bi bi-geo-alt text-muted me-1"></i>
                                   <small className="text-muted">{cls.location || 'Location not specified'}</small>
                                 </div>
-                                
+
                                 <div className="detail-item mt-2">
                                   <i className="bi bi-calendar text-muted me-1"></i>
                                   <small className="text-muted">
@@ -1534,7 +1572,7 @@ const UniversalProfile = () => {
                       ))}
                     </div>
                   )}
-                  
+
                   {/* {isOwnProfile && teacherClasses.length > 0 && (
                     <div className="text-center mt-4">
                       <button className="btn btn-primary">
@@ -1563,8 +1601,8 @@ const UniversalProfile = () => {
                           <div className="achievement-content">
                             <h6>{achievement}</h6>
                             <p className="text-muted mb-0">
-                              {userRole === 'teacher' 
-                                ? 'Professional recognition in teaching excellence' 
+                              {userRole === 'teacher'
+                                ? 'Professional recognition in teaching excellence'
                                 : 'Academic achievement and recognition'
                               }
                             </p>

@@ -10,7 +10,7 @@ const TeacherDashboard = () => {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('requests');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  
+
   // State for requests
   const [studentRequests, setStudentRequests] = useState([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
@@ -54,52 +54,66 @@ const TeacherDashboard = () => {
   const API_BASE_URL = 'http://145.223.21.62:5000';
 
   // Function to render user avatar with initials
-  const renderAvatar = (name, size = 60) => {
-    const initials = name 
+  const renderAvatar = (name, size = 60, profilePicture = null) => {
+    const initials = name
       ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
       : 'U';
-    
-    // Generate a consistent color based on user name
+
     const getAvatarColor = (name) => {
       if (!name) return '#6c757d';
-      
+
       const colors = [
-        '#007bff', // Blue
-        '#28a745', // Green
-        '#dc3545', // Red
-        '#ffc107', // Yellow
-        '#17a2b8', // Cyan
-        '#6f42c1', // Purple
-        '#e83e8c', // Pink
-        '#fd7e14', // Orange
-        '#20c997', // Teal
-        '#6610f2'  // Indigo
+        '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8',
+        '#6f42c1', '#e83e8c', '#fd7e14', '#20c997', '#6610f2'
       ];
-      
+
       let hash = 0;
       for (let i = 0; i < name.length; i++) {
         hash = name.charCodeAt(i) + ((hash << 5) - hash);
       }
-      
+
       return colors[Math.abs(hash) % colors.length];
     };
-    
+
+    // Check if we should show profile picture or initials
+    const showProfilePic = profilePicture &&
+      profilePicture.trim() !== '' &&
+      !profilePicture.includes('randomuser.me');
+
     return (
-      <div 
+      <div
         className="user-avatar rounded-circle d-flex align-items-center justify-content-center"
-        style={{ 
-          width: `${size}px`, 
-          height: `${size}px`, 
-          backgroundColor: getAvatarColor(name),
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          backgroundColor: showProfilePic ? 'transparent' : getAvatarColor(name),
           color: 'white',
           fontSize: `${Math.max(12, size / 4)}px`,
           fontWeight: '600',
           border: '2px solid #fff',
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          flexShrink: 0
+          flexShrink: 0,
+          overflow: 'hidden'
         }}
       >
-        {initials}
+        {showProfilePic ? (
+          <img
+            src={profilePicture}
+            alt={name}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover'
+            }}
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.parentElement.style.backgroundColor = getAvatarColor(name);
+              e.target.parentElement.innerHTML = initials;
+            }}
+          />
+        ) : (
+          initials
+        )}
       </div>
     );
   };
@@ -151,16 +165,16 @@ const TeacherDashboard = () => {
       console.log('Fetching teacher ID for user:', userId);
 
       const response = await fetch(`${API_BASE_URL}/api/teachers`);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch teachers: ${response.status}`);
       }
-      
+
       const teachers = await response.json();
-      const teacherRecord = teachers.find(teacher => 
+      const teacherRecord = teachers.find(teacher =>
         teacher.user_id === parseInt(userId) || teacher.user_id === userId
       );
-      
+
       if (teacherRecord) {
         console.log('Found teacher record:', teacherRecord);
         setTeacherId(teacherRecord.teacher_id);
@@ -179,15 +193,15 @@ const TeacherDashboard = () => {
     try {
       setRequestsLoading(true);
       setRequestsError(null);
-      
+
       console.log('Fetching requests for teacher ID:', teacherId);
-      
+
       const response = await fetch(`${API_BASE_URL}/api/requests?teacher_id=${teacherId}`);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch requests: ${response.status}`);
       }
-      
+
       const requests = await response.json();
       console.log('Fetched requests:', requests);
       setStudentRequests(requests);
@@ -205,15 +219,15 @@ const TeacherDashboard = () => {
     try {
       setClassesLoading(true);
       setClassesError(null);
-      
+
       console.log('Fetching classes for teacher ID:', teacherId);
-      
+
       const response = await fetch(`${API_BASE_URL}/api/classes?teacher_id=${teacherId}`);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch classes: ${response.status}`);
       }
-      
+
       const classesData = await response.json();
       console.log('Fetched classes:', classesData);
       setClasses(classesData);
@@ -318,7 +332,7 @@ const TeacherDashboard = () => {
         await createClass(classFormData);
         alert('Class created successfully!');
       }
-      
+
       // Reset form and refresh classes
       setShowClassModal(false);
       setEditingClass(null);
@@ -333,7 +347,7 @@ const TeacherDashboard = () => {
         is_online: false
       });
       fetchClasses();
-      
+
     } catch (error) {
       console.error('Error saving class:', error);
       alert('Failed to save class. Please try again.');
@@ -392,7 +406,7 @@ const TeacherDashboard = () => {
   const handleRequestAction = async (requestId, newStatus) => {
     try {
       console.log(`Updating request ${requestId} to status: ${newStatus}`);
-      
+
       const response = await fetch(`${API_BASE_URL}/api/requests/${requestId}/status`, {
         method: 'PATCH',
         headers: {
@@ -402,14 +416,14 @@ const TeacherDashboard = () => {
           status: newStatus
         })
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to update request: ${response.status}`);
       }
-      
+
       // Refresh requests after successful update
       fetchStudentRequests();
-      
+
       console.log(`Request ${requestId} successfully updated to ${newStatus}`);
     } catch (error) {
       console.error('Error updating request:', error);
@@ -492,7 +506,7 @@ const TeacherDashboard = () => {
   return (
     <div className="dashboard-container">
       {/* Sidebar Toggle Button */}
-      <button 
+      <button
         className="sidebar-toggle"
         onClick={toggleSidebar}
         title={sidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar'}
@@ -508,7 +522,7 @@ const TeacherDashboard = () => {
       {/* Sidebar */}
       <div className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
-          {renderAvatar(user?.name || 'Teacher', sidebarCollapsed ? 40 : 60)}
+          {renderAvatar(user?.name || 'Teacher', sidebarCollapsed ? 40 : 60, user?.profile_picture)}
           {!sidebarCollapsed && (
             <>
               <h5 className="mt-2 mb-1">{user?.name || 'Teacher Name'}</h5>
@@ -599,7 +613,7 @@ const TeacherDashboard = () => {
           </h1>
           <div className="header-actions">
             {activeTab === 'requests' && (
-              <button 
+              <button
                 className="btn btn-outline-primary btn-sm"
                 onClick={fetchStudentRequests}
                 disabled={requestsLoading}
@@ -610,7 +624,7 @@ const TeacherDashboard = () => {
             )}
             {activeTab === 'classes' && (
               <div>
-                <button 
+                <button
                   className="btn btn-outline-primary btn-sm me-2"
                   onClick={fetchClasses}
                   disabled={classesLoading}
@@ -618,7 +632,7 @@ const TeacherDashboard = () => {
                   <i className="bi bi-arrow-clockwise me-1"></i>
                   Refresh
                 </button>
-                <button 
+                <button
                   className="btn btn-primary btn-sm"
                   onClick={handleNewClass}
                 >
@@ -640,7 +654,7 @@ const TeacherDashboard = () => {
                     <small className="text-muted ms-2">(Teacher ID: {teacherId})</small>
                   )}
                 </h5>
-                
+
                 {requestsLoading ? (
                   <div className="text-center py-4">
                     <div className="spinner-border text-primary" role="status">
@@ -652,7 +666,7 @@ const TeacherDashboard = () => {
                   <div className="alert alert-danger" role="alert">
                     <i className="bi bi-exclamation-triangle-fill me-2"></i>
                     {requestsError}
-                    <button 
+                    <button
                       className="btn btn-outline-danger btn-sm ms-3"
                       onClick={fetchStudentRequests}
                     >
@@ -703,8 +717,8 @@ const TeacherDashboard = () => {
                               </div>
                             </td>
                             <td>
-                              <div 
-                                className="text-truncate" 
+                              <div
+                                className="text-truncate"
                                 style={{ maxWidth: '150px' }}
                                 title={request.message}
                               >
@@ -726,14 +740,14 @@ const TeacherDashboard = () => {
                             <td>
                               {request.status === 'pending' ? (
                                 <div className="btn-group" role="group">
-                                  <button 
+                                  <button
                                     className="btn btn-sm btn-success"
                                     onClick={() => handleRequestAction(request.id, 'accepted')}
                                     title="Accept Request"
                                   >
                                     <i className="bi bi-check"></i>
                                   </button>
-                                  <button 
+                                  <button
                                     className="btn btn-sm btn-danger"
                                     onClick={() => handleRequestAction(request.id, 'declined')}
                                     title="Decline Request"
@@ -756,14 +770,14 @@ const TeacherDashboard = () => {
           )}
 
           {activeTab === 'profile' && (
-            <UniversalProfile/>
+            <UniversalProfile />
           )}
 
           {activeTab === 'classes' && (
             <div className="card">
               <div className="card-body">
                 <h5 className="card-title">Class Management</h5>
-                
+
                 {classesLoading ? (
                   <div className="text-center py-4">
                     <div className="spinner-border text-primary" role="status">
@@ -775,7 +789,7 @@ const TeacherDashboard = () => {
                   <div className="alert alert-danger" role="alert">
                     <i className="bi bi-exclamation-triangle-fill me-2"></i>
                     {classesError}
-                    <button 
+                    <button
                       className="btn btn-outline-danger btn-sm ms-3"
                       onClick={fetchClasses}
                     >
@@ -787,7 +801,7 @@ const TeacherDashboard = () => {
                     <i className="bi bi-book display-1 text-muted"></i>
                     <h5 className="mt-3">No classes yet</h5>
                     <p className="text-muted">You haven't created any classes yet. Start by adding your first class!</p>
-                    <button 
+                    <button
                       className="btn btn-primary"
                       onClick={handleNewClass}
                     >
@@ -815,8 +829,8 @@ const TeacherDashboard = () => {
                             <td className="fw-bold">{cls.title}</td>
                             <td>{getSubjectName(cls.subject_id)}</td>
                             <td>
-                              <div 
-                                className="text-truncate" 
+                              <div
+                                className="text-truncate"
                                 style={{ maxWidth: '200px' }}
                                 title={cls.description}
                               >
@@ -832,14 +846,14 @@ const TeacherDashboard = () => {
                             </td>
                             <td>
                               <div className="btn-group" role="group">
-                                <button 
+                                <button
                                   className="btn btn-sm btn-outline-primary"
                                   onClick={() => handleEditClass(cls)}
                                   title="Edit Class"
                                 >
                                   <i className="bi bi-pencil"></i>
                                 </button>
-                                <button 
+                                <button
                                   className="btn btn-sm btn-outline-danger"
                                   onClick={() => handleDeleteClass(cls.id, cls.title)}
                                   title="Delete Class"
@@ -907,9 +921,9 @@ const TeacherDashboard = () => {
                 <h5 className="modal-title">
                   {editingClass ? 'Edit Class' : 'Create New Class'}
                 </h5>
-                <button 
-                  type="button" 
-                  className="btn-close" 
+                <button
+                  type="button"
+                  className="btn-close"
                   onClick={() => setShowClassModal(false)}
                 ></button>
               </div>
@@ -922,7 +936,7 @@ const TeacherDashboard = () => {
                         type="text"
                         className="form-control"
                         value={classFormData.title}
-                        onChange={(e) => setClassFormData({...classFormData, title: e.target.value})}
+                        onChange={(e) => setClassFormData({ ...classFormData, title: e.target.value })}
                         placeholder="e.g., Advanced Mathematics"
                         required
                       />
@@ -932,7 +946,7 @@ const TeacherDashboard = () => {
                       <select
                         className="form-select"
                         value={classFormData.subject_id}
-                        onChange={(e) => setClassFormData({...classFormData, subject_id: e.target.value})}
+                        onChange={(e) => setClassFormData({ ...classFormData, subject_id: e.target.value })}
                         required
                       >
                         <option value="">Select a Subject</option>
@@ -949,7 +963,7 @@ const TeacherDashboard = () => {
                         className="form-control"
                         rows="3"
                         value={classFormData.description}
-                        onChange={(e) => setClassFormData({...classFormData, description: e.target.value})}
+                        onChange={(e) => setClassFormData({ ...classFormData, description: e.target.value })}
                         placeholder="Describe your class, topics covered, and teaching approach..."
                       ></textarea>
                     </div>
@@ -959,7 +973,7 @@ const TeacherDashboard = () => {
                         type="number"
                         className="form-control"
                         value={classFormData.price}
-                        onChange={(e) => setClassFormData({...classFormData, price: e.target.value})}
+                        onChange={(e) => setClassFormData({ ...classFormData, price: e.target.value })}
                         placeholder="e.g., 75.00"
                         step="0.01"
                         min="0"
@@ -972,7 +986,7 @@ const TeacherDashboard = () => {
                         type="text"
                         className="form-control"
                         value={classFormData.location}
-                        onChange={(e) => setClassFormData({...classFormData, location: e.target.value})}
+                        onChange={(e) => setClassFormData({ ...classFormData, location: e.target.value })}
                         placeholder="e.g., New York, Online"
                       />
                     </div>
@@ -982,7 +996,7 @@ const TeacherDashboard = () => {
                         type="number"
                         className="form-control"
                         value={classFormData.lat}
-                        onChange={(e) => setClassFormData({...classFormData, lat: e.target.value})}
+                        onChange={(e) => setClassFormData({ ...classFormData, lat: e.target.value })}
                         placeholder="e.g., 40.7128"
                         step="any"
                       />
@@ -993,7 +1007,7 @@ const TeacherDashboard = () => {
                         type="number"
                         className="form-control"
                         value={classFormData.lng}
-                        onChange={(e) => setClassFormData({...classFormData, lng: e.target.value})}
+                        onChange={(e) => setClassFormData({ ...classFormData, lng: e.target.value })}
                         placeholder="e.g., -74.0060"
                         step="any"
                       />
@@ -1005,7 +1019,7 @@ const TeacherDashboard = () => {
                           type="checkbox"
                           id="isOnline"
                           checked={classFormData.is_online}
-                          onChange={(e) => setClassFormData({...classFormData, is_online: e.target.checked})}
+                          onChange={(e) => setClassFormData({ ...classFormData, is_online: e.target.checked })}
                         />
                         <label className="form-check-label" htmlFor="isOnline">
                           This is an online class
@@ -1015,16 +1029,16 @@ const TeacherDashboard = () => {
                   </div>
                 </div>
                 <div className="modal-footer">
-                  <button 
-                    type="button" 
-                    className="btn btn-secondary" 
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
                     onClick={() => setShowClassModal(false)}
                     disabled={classFormLoading}
                   >
                     Cancel
                   </button>
-                  <button 
-                    type="submit" 
+                  <button
+                    type="submit"
                     className="btn btn-primary"
                     disabled={classFormLoading}
                   >

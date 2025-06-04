@@ -51,52 +51,68 @@ const Header = () => {
     }
   };
 
-  // Function to render user avatar with initials
-  const renderAvatar = () => {
-    const initials = user?.name 
-      ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  // Enhanced function to render user avatar with initials and profile picture support
+  const renderAvatar = (name, size = 32, profilePicture = null) => {
+    const initials = name
+      ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
       : 'U';
-    
-    // Generate a consistent color based on user name
+
     const getAvatarColor = (name) => {
       if (!name) return '#6c757d';
-      
+
       const colors = [
-        '#007bff', // Blue
-        '#28a745', // Green
-        '#dc3545', // Red
-        '#ffc107', // Yellow
-        '#17a2b8', // Cyan
-        '#6f42c1', // Purple
-        '#e83e8c', // Pink
-        '#fd7e14', // Orange
-        '#20c997', // Teal
-        '#6610f2'  // Indigo
+        '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8',
+        '#6f42c1', '#e83e8c', '#fd7e14', '#20c997', '#6610f2'
       ];
-      
+
       let hash = 0;
       for (let i = 0; i < name.length; i++) {
         hash = name.charCodeAt(i) + ((hash << 5) - hash);
       }
-      
+
       return colors[Math.abs(hash) % colors.length];
     };
-    
+
+    // Check if we should show profile picture or initials
+    const showProfilePic = profilePicture &&
+      profilePicture.trim() !== '' &&
+      !profilePicture.includes('randomuser.me');
+
     return (
-      <div 
-        className="user-avatar rounded-circle me-2 d-flex align-items-center justify-content-center"
-        style={{ 
-          width: '32px', 
-          height: '32px', 
-          backgroundColor: getAvatarColor(user?.name),
+      <div
+        className="user-avatar rounded-circle d-flex align-items-center justify-content-center"
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          backgroundColor: showProfilePic ? 'transparent' : getAvatarColor(name),
           color: 'white',
-          fontSize: '13px',
+          fontSize: `${Math.max(10, size / 3)}px`,
           fontWeight: '600',
           border: '2px solid #fff',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          flexShrink: 0,
+          overflow: 'hidden',
+          marginRight: '8px'
         }}
       >
-        {initials}
+        {showProfilePic ? (
+          <img
+            src={profilePicture}
+            alt={name}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover'
+            }}
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.parentElement.style.backgroundColor = getAvatarColor(name);
+              e.target.parentElement.innerHTML = initials;
+            }}
+          />
+        ) : (
+          initials
+        )}
       </div>
     );
   };
@@ -166,15 +182,29 @@ const Header = () => {
               {user ? (
                 <div className="dropdown position-relative">
                   <button
-                    className="btn btn-link text-dark text-decoration-none d-flex align-items-center"
+                    className="btn btn-link text-dark text-decoration-none d-flex align-items-center user-dropdown-btn"
                     onClick={() => setShowDropdown(!showDropdown)}
-                    style={{ border: 'none', background: 'none', padding: '0' }}
+                    style={{ border: 'none', background: 'none', padding: '4px 8px' }}
                   >
-                    {renderAvatar()}
-                    <span>{user.name}</span>
+                    {renderAvatar(user?.name || 'User', 32, user?.profile_picture)}
+                    <span className="user-name">{user.name}</span>
+                    <i className="bi bi-chevron-down ms-1" style={{ fontSize: '12px' }}></i>
                   </button>
                   {showDropdown && (
                     <div className="dropdown-menu show position-absolute end-0 mt-2">
+                      <div className="dropdown-header d-flex align-items-center">
+                        {renderAvatar(user?.name || 'User', 24, user?.profile_picture)}
+                        <div>
+                          <div className="fw-bold">{user.name}</div>
+                          <small className="text-muted">{user.email}</small>
+                          <div>
+                            <span className={`badge ${user.role === 'teacher' ? 'bg-primary' : 'bg-success'} badge-sm`}>
+                              {user.role || 'User'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="dropdown-divider"></div>
                       <Link 
                         className="dropdown-item" 
                         to={user.role === 'teacher' ? '/dashboard/teacher' : '/dashboard/student'}
@@ -215,6 +245,7 @@ const Header = () => {
                       onClick={() => setShowLoginDropdown(!showLoginDropdown)}
                     >
                       Login
+                      <i className="bi bi-chevron-down ms-1" style={{ fontSize: '12px' }}></i>
                     </button>
                     {showLoginDropdown && (
                       <div className="dropdown-menu show position-absolute end-0 mt-2">
@@ -243,6 +274,7 @@ const Header = () => {
                       onClick={() => setShowRegisterDropdown(!showRegisterDropdown)}
                     >
                       Register
+                      <i className="bi bi-chevron-down ms-1" style={{ fontSize: '12px' }}></i>
                     </button>
                     {showRegisterDropdown && (
                       <div className="dropdown-menu show position-absolute end-0 mt-2">
@@ -271,6 +303,107 @@ const Header = () => {
           </div>
         </div>
       </nav>
+
+      <style jsx>{`
+        .user-dropdown-btn {
+          transition: all 0.2s ease;
+          border-radius: 25px !important;
+          padding: 4px 12px 4px 4px !important;
+        }
+
+        .user-dropdown-btn:hover {
+          background-color: #f8f9fa !important;
+          transform: translateY(-1px);
+        }
+
+        .user-name {
+          font-weight: 500;
+          color: #333 !important;
+          margin-left: 4px;
+          margin-right: 4px;
+        }
+
+        .dropdown-menu {
+          min-width: 280px;
+          border: none;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+          border-radius: 12px;
+          padding: 8px 0;
+          margin-top: 8px !important;
+        }
+
+        .dropdown-header {
+          padding: 12px 16px;
+          border-bottom: 1px solid #eee;
+          margin-bottom: 8px;
+          background-color: #f8f9fa;
+          border-radius: 12px 12px 0 0;
+        }
+
+        .dropdown-item {
+          padding: 8px 16px;
+          font-size: 14px;
+          transition: all 0.2s ease;
+        }
+
+        .dropdown-item:hover {
+          background-color: #f8f9fa;
+          transform: translateX(4px);
+        }
+
+        .dropdown-item i {
+          width: 16px;
+          text-align: center;
+        }
+
+        .badge-sm {
+          font-size: 10px;
+          padding: 2px 6px;
+        }
+
+        .dropdown-divider {
+          margin: 8px 0;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+          .user-name {
+            display: none;
+          }
+          
+          .dropdown-menu {
+            min-width: 250px;
+            right: 0 !important;
+            left: auto !important;
+          }
+        }
+
+        /* Animation for dropdown */
+        .dropdown-menu.show {
+          animation: dropdownFadeIn 0.2s ease-out;
+        }
+
+        @keyframes dropdownFadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        /* Avatar hover effect */
+        .user-avatar {
+          transition: all 0.2s ease;
+        }
+
+        .user-dropdown-btn:hover .user-avatar {
+          transform: scale(1.05);
+          box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+        }
+      `}</style>
     </header>
   );
 };
