@@ -9,6 +9,7 @@ const TeacherDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('requests');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   
   // State for requests
   const [studentRequests, setStudentRequests] = useState([]);
@@ -69,6 +70,23 @@ const TeacherDashboard = () => {
       fetchClasses();
     }
   }, [teacherId]);
+
+  // Handle window resize for responsive sidebar
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 768) {
+        setSidebarCollapsed(true);
+      } else {
+        setSidebarCollapsed(false);
+      }
+    };
+
+    // Set initial state
+    handleResize();
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Fetch teacher ID from teachers API using user_id
   const fetchTeacherId = async () => {
@@ -357,6 +375,10 @@ const TeacherDashboard = () => {
     }
   };
 
+  const toggleSidebar = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
+
   // Format date for display
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -418,18 +440,36 @@ const TeacherDashboard = () => {
 
   return (
     <div className="dashboard-container">
+      {/* Sidebar Toggle Button */}
+      <button 
+        className="sidebar-toggle"
+        onClick={toggleSidebar}
+        title={sidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar'}
+      >
+        <i className={`bi ${sidebarCollapsed ? 'bi-list' : 'bi-x-lg'}`}></i>
+      </button>
+
+      {/* Sidebar Overlay for mobile */}
+      {!sidebarCollapsed && window.innerWidth <= 768 && (
+        <div className="sidebar-overlay" onClick={toggleSidebar}></div>
+      )}
+
       {/* Sidebar */}
-      <div className="sidebar">
+      <div className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
           <img
             src={user?.profile_picture || 'https://via.placeholder.com/100'}
             alt="Profile"
             className="profile-image"
           />
-          <h5>{user?.name || 'Teacher Name'}</h5>
-          <p className="text-muted">Teacher</p>
-          {teacherId && (
-            <small className="text-muted">ID: {teacherId}</small>
+          {!sidebarCollapsed && (
+            <>
+              <h5>{user?.name || 'Teacher Name'}</h5>
+              <p className="text-muted">Teacher</p>
+              {teacherId && (
+                <small className="text-muted">ID: {teacherId}</small>
+              )}
+            </>
           )}
         </div>
 
@@ -438,11 +478,16 @@ const TeacherDashboard = () => {
             <button
               className={`nav-link ${activeTab === 'requests' ? 'active' : ''}`}
               onClick={() => setActiveTab('requests')}
+              title="Student Requests"
             >
               <i className="bi bi-envelope me-2"></i>
-              Student Requests
-              {studentRequests.length > 0 && (
-                <span className="badge bg-primary ms-2">{studentRequests.length}</span>
+              {!sidebarCollapsed && (
+                <>
+                  Student Requests
+                  {studentRequests.length > 0 && (
+                    <span className="badge bg-primary ms-2">{studentRequests.length}</span>
+                  )}
+                </>
               )}
             </button>
           </li>
@@ -450,20 +495,26 @@ const TeacherDashboard = () => {
             <button
               className={`nav-link ${activeTab === 'profile' ? 'active' : ''}`}
               onClick={() => setActiveTab('profile')}
+              title="Profile"
             >
               <i className="bi bi-person me-2"></i>
-              Profile
+              {!sidebarCollapsed && 'Profile'}
             </button>
           </li>
           <li className="nav-item">
             <button
               className={`nav-link ${activeTab === 'classes' ? 'active' : ''}`}
               onClick={() => setActiveTab('classes')}
+              title="Classes"
             >
               <i className="bi bi-book me-2"></i>
-              Classes
-              {classes.length > 0 && (
-                <span className="badge bg-secondary ms-2">{classes.length}</span>
+              {!sidebarCollapsed && (
+                <>
+                  Classes
+                  {classes.length > 0 && (
+                    <span className="badge bg-secondary ms-2">{classes.length}</span>
+                  )}
+                </>
               )}
             </button>
           </li>
@@ -471,25 +522,27 @@ const TeacherDashboard = () => {
             <button
               className={`nav-link ${activeTab === 'location' ? 'active' : ''}`}
               onClick={() => setActiveTab('location')}
+              title="Location"
             >
               <i className="bi bi-geo-alt me-2"></i>
-              Location
+              {!sidebarCollapsed && 'Location'}
             </button>
           </li>
           <li className="nav-item mt-3">
             <button
               className="nav-link text-danger"
               onClick={handleLogout}
+              title="Logout"
             >
               <i className="bi bi-box-arrow-right me-2"></i>
-              Logout
+              {!sidebarCollapsed && 'Logout'}
             </button>
           </li>
         </ul>
       </div>
 
       {/* Main Content */}
-      <main className="main-content">
+      <main className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <div className="content-header">
           <h1>
             {activeTab === 'requests' && 'Student Requests'}
@@ -497,35 +550,37 @@ const TeacherDashboard = () => {
             {activeTab === 'classes' && 'Class Management'}
             {activeTab === 'location' && 'Location Management'}
           </h1>
-          {activeTab === 'requests' && (
-            <button 
-              className="btn btn-outline-primary btn-sm"
-              onClick={fetchStudentRequests}
-              disabled={requestsLoading}
-            >
-              <i className="bi bi-arrow-clockwise me-1"></i>
-              Refresh
-            </button>
-          )}
-          {activeTab === 'classes' && (
-            <div>
+          <div className="header-actions">
+            {activeTab === 'requests' && (
               <button 
-                className="btn btn-outline-primary btn-sm me-2"
-                onClick={fetchClasses}
-                disabled={classesLoading}
+                className="btn btn-outline-primary btn-sm"
+                onClick={fetchStudentRequests}
+                disabled={requestsLoading}
               >
                 <i className="bi bi-arrow-clockwise me-1"></i>
                 Refresh
               </button>
-              <button 
-                className="btn btn-primary btn-sm"
-                onClick={handleNewClass}
-              >
-                <i className="bi bi-plus me-1"></i>
-                Add New Class
-              </button>
-            </div>
-          )}
+            )}
+            {activeTab === 'classes' && (
+              <div>
+                <button 
+                  className="btn btn-outline-primary btn-sm me-2"
+                  onClick={fetchClasses}
+                  disabled={classesLoading}
+                >
+                  <i className="bi bi-arrow-clockwise me-1"></i>
+                  Refresh
+                </button>
+                <button 
+                  className="btn btn-primary btn-sm"
+                  onClick={handleNewClass}
+                >
+                  <i className="bi bi-plus me-1"></i>
+                  Add New Class
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="content-body">
@@ -953,6 +1008,45 @@ const TeacherDashboard = () => {
           display: flex;
           min-height: 100vh;
           padding-top: 80px; /* Height of the header */
+          position: relative;
+        }
+
+        .sidebar-toggle {
+          position: fixed;
+          top: 90px;
+          left: 20px;
+          z-index: 1001;
+          background: #fff;
+          border: 1px solid #dee2e6;
+          border-radius: 50%;
+          width: 45px;
+          height: 45px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          transition: all 0.3s ease;
+          cursor: pointer;
+        }
+
+        .sidebar-toggle:hover {
+          background: #f8f9fa;
+          transform: scale(1.05);
+        }
+
+        .sidebar-toggle i {
+          font-size: 18px;
+          color: #333;
+        }
+
+        .sidebar-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0,0,0,0.5);
+          z-index: 999;
         }
 
         .sidebar {
@@ -963,7 +1057,14 @@ const TeacherDashboard = () => {
           height: calc(100vh - 80px);
           overflow-y: auto;
           border-right: 1px solid #dee2e6;
-          
+          z-index: 1000;
+          transition: all 0.3s ease;
+          transform: translateX(0);
+        }
+
+        .sidebar.collapsed {
+          width: 70px;
+          padding: 20px 10px;
         }
 
         .sidebar-header {
@@ -971,20 +1072,32 @@ const TeacherDashboard = () => {
           padding-bottom: 20px;
           border-bottom: 1px solid #dee2e6;
           margin-bottom: 20px;
+          transition: all 0.3s ease;
+        }
+
+        .sidebar.collapsed .sidebar-header {
+          padding-bottom: 10px;
         }
 
         .profile-image {
-          width: 100px;
-          height: 100px;
+          width: 60px;
+          height: 60px;
           border-radius: 50%;
           object-fit: cover;
           margin-bottom: 10px;
+          transition: all 0.3s ease;
+        }
+
+        .sidebar.collapsed .profile-image {
+          width: 40px;
+          height: 40px;
+          margin-bottom: 5px;
         }
 
         .nav-link {
           color: #333;
-          padding: 10px 15px;
-          border-radius: 5px;
+          padding: 12px 15px;
+          border-radius: 8px;
           margin: 5px 0;
           text-align: left;
           width: 100%;
@@ -993,11 +1106,19 @@ const TeacherDashboard = () => {
           cursor: pointer;
           display: flex;
           align-items: center;
-          justify-content: space-between;
+          justify-content: flex-start;
+          transition: all 0.3s ease;
+          position: relative;
+        }
+
+        .sidebar.collapsed .nav-link {
+          padding: 12px 8px;
+          justify-content: center;
         }
 
         .nav-link:hover {
           background-color: #e9ecef;
+          transform: translateX(2px);
         }
 
         .nav-link.active {
@@ -1005,10 +1126,24 @@ const TeacherDashboard = () => {
           color: white;
         }
 
+        .nav-link i {
+          font-size: 16px;
+          min-width: 20px;
+        }
+
+        .sidebar.collapsed .nav-link i {
+          margin-right: 0 !important;
+        }
+
         .main-content {
           flex: 1;
           margin-left: 280px;
           padding: 20px;
+          transition: all 0.3s ease;
+        }
+
+        .main-content.sidebar-collapsed {
+          margin-left: 70px;
         }
 
         .content-header {
@@ -1017,6 +1152,12 @@ const TeacherDashboard = () => {
           border-bottom: 1px solid #dee2e6;
           display: flex;
           justify-content: space-between;
+          align-items: center;
+        }
+
+        .header-actions {
+          display: flex;
+          gap: 10px;
           align-items: center;
         }
 
@@ -1052,26 +1193,81 @@ const TeacherDashboard = () => {
           z-index: 1050;
         }
 
+        /* Mobile Responsive */
         @media (max-width: 768px) {
           .sidebar {
-            width: 100%;
-            position: relative;
-            height: auto;
+            width: 280px;
+            transform: translateX(-100%);
           }
 
-          .main-content {
+          .sidebar:not(.collapsed) {
+            transform: translateX(0);
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+          }
+
+          .sidebar.collapsed {
+            transform: translateX(-100%);
+          }
+
+          .main-content,
+          .main-content.sidebar-collapsed {
             margin-left: 0;
+            padding: 10px;
           }
 
-          .dashboard-container {
-            flex-direction: column;
+          .sidebar-toggle {
+            left: 10px;
+            top: 90px;
           }
 
           .content-header {
             flex-direction: column;
             align-items: flex-start;
             gap: 10px;
+            margin-left: 50px;
           }
+
+          .header-actions {
+            width: 100%;
+            justify-content: flex-start;
+          }
+        }
+
+        /* Smooth animations */
+        @media (prefers-reduced-motion: no-preference) {
+          .sidebar,
+          .main-content,
+          .nav-link,
+          .sidebar-toggle {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+        }
+
+        /* Tooltips for collapsed sidebar */
+        .sidebar.collapsed .nav-link {
+          position: relative;
+        }
+
+        .sidebar.collapsed .nav-link:hover::after {
+          content: attr(title);
+          position: absolute;
+          left: 70px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: #333;
+          color: white;
+          padding: 5px 10px;
+          border-radius: 4px;
+          font-size: 12px;
+          white-space: nowrap;
+          z-index: 1002;
+          opacity: 0;
+          animation: fadeIn 0.2s ease-in-out forwards;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
       `}</style>
     </div>
