@@ -11,6 +11,8 @@ const StudentPosts = () => {
   const [loading, setLoading] = useState(true);
   const [requestLoading, setRequestLoading] = useState(false);
   const [user, setUser] = useState(null);
+  const [studentProfileId, setStudentProfileId] = useState(null); // Add this state
+  const [teacherProfileId, setTeacherProfileId] = useState(null); // Add this state for teachers
   const [newPost, setNewPost] = useState({
     subject: '',
     grade: '',
@@ -28,6 +30,62 @@ const StudentPosts = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const API_BASE_URL = 'http://145.223.21.62:5000';
+
+  // Fetch student profile ID from the API
+  const fetchStudentProfileId = async (userId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/students`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch students: ${response.status}`);
+      }
+      
+      const students = await response.json();
+      const studentProfile = students.find(student => 
+        student.user_id === parseInt(userId) || student.user_id === userId
+      );
+      
+      if (studentProfile) {
+        console.log('Found student profile ID:', studentProfile.student_id);
+        setStudentProfileId(studentProfile.student_id);
+        return studentProfile.student_id;
+      } else {
+        console.error('Student profile not found for user ID:', userId);
+        return null;
+      }
+    } catch (err) {
+      console.error('Error fetching student profile ID:', err);
+      return null;
+    }
+  };
+
+  // Fetch teacher profile ID from the API
+  const fetchTeacherProfileId = async (userId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/teachers`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch teachers: ${response.status}`);
+      }
+      
+      const teachers = await response.json();
+      const teacherProfile = teachers.find(teacher => 
+        teacher.user_id === parseInt(userId) || teacher.user_id === userId
+      );
+      
+      if (teacherProfile) {
+        console.log('Found teacher profile ID:', teacherProfile.teacher_id);
+        setTeacherProfileId(teacherProfile.teacher_id);
+        return teacherProfile.teacher_id;
+      } else {
+        console.error('Teacher profile not found for user ID:', userId);
+        return null;
+      }
+    } catch (err) {
+      console.error('Error fetching teacher profile ID:', err);
+      return null;
+    }
+  };
 
   const fetchStudentPosts = async () => {
     try {
@@ -152,7 +210,7 @@ const StudentPosts = () => {
   ];
 
   useEffect(() => {
-    const loadUserData = () => {
+    const loadUserData = async () => {
       try {
         const userData = localStorage.getItem('user');
         if (userData) {
@@ -167,12 +225,18 @@ const StudentPosts = () => {
 
           setUser(parsedUser);
 
-          // Only set contact for students (for creating posts)
+          // Fetch the appropriate profile ID based on user role
+          const userId = parsedUser.user_id || parsedUser.id;
+          
           if (parsedUser.role === 'student') {
+            await fetchStudentProfileId(userId);
+            // Set contact for students (for creating posts)
             setNewPost(prev => ({
               ...prev,
               contact: parsedUser.email || ''
             }));
+          } else if (parsedUser.role === 'teacher') {
+            await fetchTeacherProfileId(userId);
           }
         } else {
           navigate('/login');
@@ -224,19 +288,21 @@ const StudentPosts = () => {
     setRequestLoading(true);
 
     try {
-      if (!selectedPost || !user) {
-        throw new Error('Missing required data');
+      if (!selectedPost || !user || !teacherProfileId) {
+        throw new Error('Missing required data. Please ensure you are logged in and have a complete profile.');
       }
 
       const requestPayload = {
         student_id: selectedPost.student_id,
-        teacher_id: user.id, // Assuming teacher ID is stored in user.id
+        teacher_id: teacherProfileId, // Use the resolved teacher profile ID
         subject_id: selectedPost.subject_id,
         class_id: selectedPost.class_id || null,
         message: requestData.message,
         budget: parseFloat(requestData.budget) || null,
         location: requestData.location || selectedPost.location
       };
+
+      console.log('Sending request with payload:', requestPayload);
 
       const result = await createRequest(requestPayload);
 
@@ -247,7 +313,7 @@ const StudentPosts = () => {
 
     } catch (error) {
       console.error('Error sending request:', error);
-      alert('Failed to send request. Please try again.');
+      alert(`Failed to send request: ${error.message}`);
     } finally {
       setRequestLoading(false);
     }
@@ -256,6 +322,10 @@ const StudentPosts = () => {
   // Handle contact student button click
   const handleContactStudent = (post) => {
     if (user?.role === 'teacher') {
+      if (!teacherProfileId) {
+        alert('Teacher profile not found. Please ensure your profile is complete.');
+        return;
+      }
       setSelectedPost(post);
       setRequestData(prev => ({
         ...prev,
@@ -278,6 +348,12 @@ const StudentPosts = () => {
       return;
     }
 
+    // Check if student profile ID is available
+    if (!studentProfileId) {
+      alert('Student profile not found. Please ensure your profile is complete.');
+      return;
+    }
+
     // Validate required fields
     if (!newPost.subject || !newPost.grade || !newPost.description || !newPost.budget || !newPost.contact) {
       alert('Please fill in all required fields.');
@@ -294,9 +370,9 @@ const StudentPosts = () => {
         return;
       }
 
-      // Prepare the post data for API
+      // Prepare the post data for API using the resolved student profile ID
       const postData = {
-        student_id: user.student_id || user.id, // Adjust based on your user object structure
+        student_id: studentProfileId, // Use the resolved student profile ID
         subject_id: selectedSubject.id,
         grade: newPost.grade,
         description: newPost.description,
@@ -382,8 +458,23 @@ const StudentPosts = () => {
                   : 'Browse student posts and connect with those seeking tutoring in your expertise.'
                 }
               </p>
-              {/* Only show Create Post button for students */}
+              {/* Show profile status for debugging */}
               {user?.role === 'student' && (
+                <div className="mb-3">
+                  <small className="text-muted">
+                    Student ID: {studentProfileId || 'Loading...'}
+                  </small>
+                </div>
+              )}
+              {user?.role === 'teacher' && (
+                <div className="mb-3">
+                  <small className="text-muted">
+                    Teacher ID: {teacherProfileId || 'Loading...'}
+                  </small>
+                </div>
+              )}
+              {/* Only show Create Post button for students with valid profile ID */}
+              {user?.role === 'student' && studentProfileId && (
                 <button
                   className="btn btn-primary btn-lg me-5"
                   onClick={() => setShowPostForm(true)}
@@ -444,8 +535,8 @@ const StudentPosts = () => {
         </div>
       </section>
 
-      {/* Post Form - Only show for students */}
-      {showPostForm && user?.role === 'student' && (
+      {/* Post Form - Only show for students with valid profile ID */}
+      {showPostForm && user?.role === 'student' && studentProfileId && (
         <section className="post-form-section">
           <div className="container">
             <div className="post-form-card">
@@ -619,7 +710,7 @@ const StudentPosts = () => {
                   <button
                     type="submit"
                     className="btn btn-primary"
-                    disabled={requestLoading}
+                    disabled={requestLoading || !teacherProfileId}
                   >
                     {requestLoading ? (
                       <>
@@ -692,7 +783,7 @@ const StudentPosts = () => {
                     ? 'Try adjusting your search criteria.'
                     : 'No student posts available yet.'}
                 </p>
-                {user?.role === 'student' && (
+                {user?.role === 'student' && studentProfileId && (
                   <button
                     className="btn btn-primary mt-3"
                     onClick={() => setShowPostForm(true)}
