@@ -11,14 +11,15 @@ const StudentPosts = () => {
   const [loading, setLoading] = useState(true);
   const [requestLoading, setRequestLoading] = useState(false);
   const [user, setUser] = useState(null);
-  const [studentProfileId, setStudentProfileId] = useState(null); // Add this state
-  const [teacherProfileId, setTeacherProfileId] = useState(null); // Add this state for teachers
+  const [studentProfileId, setStudentProfileId] = useState(null);
+  const [teacherProfileId, setTeacherProfileId] = useState(null);
   const [newPost, setNewPost] = useState({
     subject: '',
     grade: '',
     description: '',
     budget: '',
-    contact: ''
+    contact: '',
+    location: '' // Added location field
   });
   const [requestData, setRequestData] = useState({
     message: '',
@@ -355,7 +356,7 @@ const StudentPosts = () => {
     }
 
     // Validate required fields
-    if (!newPost.subject || !newPost.grade || !newPost.description || !newPost.budget || !newPost.contact) {
+    if (!newPost.subject || !newPost.grade || !newPost.description || !newPost.budget || !newPost.contact || !newPost.location) {
       alert('Please fill in all required fields.');
       return;
     }
@@ -378,7 +379,7 @@ const StudentPosts = () => {
         description: newPost.description,
         budget: newPost.budget,
         contact: newPost.contact,
-        location: 'Not specified' // You can make this dynamic later
+        location: newPost.location // Use the user-entered location
       };
 
       console.log('Creating post with data:', postData);
@@ -407,7 +408,8 @@ const StudentPosts = () => {
         grade: '',
         description: '',
         budget: '',
-        contact: user.email || ''
+        contact: user.email || '',
+        location: '' // Reset location field
       });
 
       // Refresh the posts list to show the new post
@@ -458,21 +460,6 @@ const StudentPosts = () => {
                   : 'Browse student posts and connect with those seeking tutoring in your expertise.'
                 }
               </p>
-              {/* Show profile status for debugging
-              {user?.role === 'student' && (
-                <div className="mb-3">
-                  <small className="text-muted">
-                    Student ID: {studentProfileId || 'Loading...'}
-                  </small>
-                </div>
-              )}
-              {user?.role === 'teacher' && (
-                <div className="mb-3">
-                  <small className="text-muted">
-                    Teacher ID: {teacherProfileId || 'Loading...'}
-                  </small>
-                </div>
-              )} */}
               {/* Only show Create Post button for students with valid profile ID */}
               {user?.role === 'student' && studentProfileId && (
                 <button
@@ -553,7 +540,7 @@ const StudentPosts = () => {
                 <div className="row g-3">
                   <div className="col-md-6">
                     <div className="form-group">
-                      <label className="form-label">Subject</label>
+                      <label className="form-label">Subject *</label>
                       <select
                         className="form-select"
                         value={newPost.subject}
@@ -571,7 +558,7 @@ const StudentPosts = () => {
                   </div>
                   <div className="col-md-6">
                     <div className="form-group">
-                      <label className="form-label">Grade</label>
+                      <label className="form-label">Grade *</label>
                       <select
                         className="form-select"
                         value={newPost.grade}
@@ -589,7 +576,7 @@ const StudentPosts = () => {
                   </div>
                   <div className="col-12">
                     <div className="form-group">
-                      <label className="form-label">Description</label>
+                      <label className="form-label">Description *</label>
                       <textarea
                         className="form-control"
                         rows="3"
@@ -602,7 +589,7 @@ const StudentPosts = () => {
                   </div>
                   <div className="col-md-6">
                     <div className="form-group">
-                      <label className="form-label">Budget (per hour)</label>
+                      <label className="form-label">Budget (per hour) *</label>
                       <input
                         type="text"
                         className="form-control"
@@ -615,7 +602,20 @@ const StudentPosts = () => {
                   </div>
                   <div className="col-md-6">
                     <div className="form-group">
-                      <label className="form-label">Contact Information</label>
+                      <label className="form-label">Location *</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={newPost.location}
+                        onChange={(e) => setNewPost({ ...newPost, location: e.target.value })}
+                        placeholder="e.g., Colombo, Kandy, Online"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="col-12">
+                    <div className="form-group">
+                      <label className="form-label">Contact Information *</label>
                       <input
                         type="text"
                         className="form-control"
